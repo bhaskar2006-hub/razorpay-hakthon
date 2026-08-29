@@ -1,0 +1,578 @@
+import { useState, useEffect, useRef } from "react";
+import { api } from "../api";
+import {
+  Send,
+  Sparkles,
+  Bot,
+  User,
+  ShoppingBag,
+  Check,
+  Plus,
+  ShieldAlert,
+  CreditCard,
+  X,
+  XCircle,
+  AlertCircle,
+  CheckCircle2,
+  RefreshCcw,
+} from "lucide-react";
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  products?: any[];
+  recommendations?: any[];
+  toolCalls?: any[];
+}
+
+interface CartItem {
+  id: string;
+  productId: string;
+  quantity: number;
+  product: {
+    id: string;
+    name: string;
+    price: number;
+    description: string;
+  };
+}
+
+export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { customerId?: string }) {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content:
+        "Hello! I am RazorAI, your sales and commerce assistant. Tell me what product you're looking for, or pick a recommendation below!",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [cart, setCart] = useState<{ items: CartItem[]; total: number; formattedTotal: string }>({
+    items: [],
+    total: 0,
+    formattedTotal: "₹0",
+  });
+
+  // Approval / Checkout Modal State
+  const [preview, setPreview] = useState<any>(null);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [orderResult, setOrderResult] = useState<any>(null);
+  const [paymentStatus, setPaymentStatus] = useState<"IDLE" | "SUCCESS" | "FAILED">("IDLE");
+  const [failureReason, setFailureReason] = useState<string>("");
+
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchCart = async () => {
+    try {
+      const res = await api.get(`/cart/${customerId}`);
+      setCart({
+        items: res.data.items || [],
+        total: res.data.total || 0,
+        formattedTotal: res.data.formattedTotal || `₹${((res.data.total || 0) / 100).toLocaleString("en-IN")}`,
+      });
+    } catch (err) {
+      console.error("Fetch cart error:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCart();
+  }, [customerId]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  const handleSend = async (textToSend?: string) => {
+    const text = textToSend || input;
+    if (!text.trim() || loading) return;
+
+    const userMsg: Message = {
+      id: `u_${Date.now()}`,
+      role: "user",
+      content: text,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const history = messages
+        .filter((m) => m.id !== "welcome")
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const res = await api.post("/agent/chat", {
+        message: text,
+        customerId,
+        history,
+      });
+
+      const assistantMsg: Message = {
+        id: `a_${Date.now()}`,
+        role: "assistant",
+        content: res.data.message,
+        products: res.data.products,
+        recommendations: res.data.recommendations,
+        toolCalls: res.data.toolCalls,
+      };
+
+      setMessages((prev) => [...prev, assistantMsg]);
+      await fetchCart();
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `err_${Date.now()}`,
+          role: "assistant",
+          content: "Sorry, I encountered an issue processing that. Please try again.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddToCart = async (productId: string) => {
+    try {
+      await api.post("/cart", {
+        customerId,
+        productId,
+        quantity: 1,
+      });
+      await fetchCart();
+    } catch (err) {
+      console.error("Add to cart error:", err);
+    }
+  };
+
+  const handleOpenCheckoutPreview = async () => {
+    try {
+      const res = await api.post("/checkout/preview", { customerId });
+      setPreview(res.data);
+      setShowApprovalModal(true);
+      setOrderResult(null);
+      setPaymentStatus("IDLE");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Unable to generate checkout preview. Ensure cart is not empty.");
+    }
+  };
+
+  const handleApprovePayment = async () => {
+    setProcessingPayment(true);
+    try {
+      const res = await api.post("/checkout/approve", {
+        customerId,
+        userApproved: true,
+        expectedTotal: preview?.total,
+      });
+
+      setOrderResult(res.data);
+      // Simulate real verification
+      await api.post("/payments/verify", {
+        razorpay_order_id: res.data.razorpayOrderId,
+        razorpay_payment_id: `pay_${Date.now()}`,
+        razorpay_signature: "mock_valid_signature", // In production uses real Razorpay checkout callback
+      });
+
+      setPaymentStatus("SUCCESS");
+      await fetchCart();
+    } catch (err: any) {
+      console.error("Approval error:", err);
+      setPaymentStatus("FAILED");
+      setFailureReason(err.response?.data?.message || "Payment approval failed by Policy Engine");
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  const handleSimulateFailure = async () => {
+    setProcessingPayment(true);
+    try {
+      const res = await api.post("/checkout/approve", {
+        customerId,
+        userApproved: true,
+        expectedTotal: preview?.total,
+      });
+
+      setOrderResult(res.data);
+
+      // Simulate failure endpoint
+      const failRes = await api.post("/payments/fail", {
+        orderId: res.data.orderId,
+        reason: "Card issuer declined transaction (Insufficient Funds / OTP Timeout)",
+      });
+
+      setPaymentStatus("FAILED");
+      setFailureReason(failRes.data.explanation || "Payment failed");
+    } catch (err: any) {
+      setPaymentStatus("FAILED");
+      setFailureReason(err.response?.data?.message || "Payment failure simulated");
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  const handleRetryPayment = async () => {
+    if (!orderResult?.orderId) return;
+    setProcessingPayment(true);
+    try {
+      const res = await api.post(`/orders/${orderResult.orderId}/retry`);
+      setOrderResult(res.data);
+      setPaymentStatus("SUCCESS");
+      await fetchCart();
+    } catch (err: any) {
+      setPaymentStatus("FAILED");
+      setFailureReason(err.response?.data?.message || "Retry failed");
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "20px", height: "calc(100vh - 120px)" }}>
+      {/* Chat Area */}
+      <div className="card" style={{ display: "flex", flexDirection: "column", height: "100%", padding: 0, overflow: "hidden" }}>
+        {/* Chat Header */}
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-secondary)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "34px", height: "34px", borderRadius: "50%", background: "var(--accent-gradient)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Sparkles size={18} color="white" />
+            </div>
+            <div>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>RazorAI Sales Agent</div>
+              <div style={{ fontSize: "11px", color: "var(--success)", display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--success)" }} />
+                PostgreSQL Catalog + Gemini 2.5 Flash
+              </div>
+            </div>
+          </div>
+          <span className="badge badge-accent">Bounded & Gated</span>
+        </div>
+
+        {/* Messages List */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              style={{
+                display: "flex",
+                gap: "12px",
+                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                maxWidth: "85%",
+              }}
+            >
+              {m.role === "assistant" && (
+                <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: "var(--bg-accent)", border: "1px solid var(--border-accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Bot size={16} color="#818cf8" />
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "12px",
+                    fontSize: "14px",
+                    lineHeight: 1.5,
+                    background: m.role === "user" ? "var(--accent-primary)" : "var(--bg-secondary)",
+                    color: "white",
+                    border: m.role === "user" ? "none" : "1px solid var(--border)",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {m.content}
+                </div>
+
+                {/* Render Product Cards if returned by tools */}
+                {m.products && m.products.length > 0 && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px" }}>
+                    {m.products.map((p) => (
+                      <div key={p.id} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "10px", padding: "12px" }}>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)" }}>{p.name}</div>
+                        <div style={{ fontSize: "11px", color: "var(--text-muted)", margin: "2px 0 6px 0" }}>{p.description}</div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+                          <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--text-primary)" }}>
+                            ₹{(p.price / 100).toLocaleString("en-IN")}
+                          </span>
+                          <button className="btn btn-primary" style={{ padding: "4px 10px", fontSize: "12px" }} onClick={() => handleAddToCart(p.id)}>
+                            <Plus size={14} /> Add to Cart
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Render Upsell Recommendation Chips */}
+                {m.recommendations && m.recommendations.length > 0 && (
+                  <div style={{ background: "rgba(168, 85, 247, 0.08)", border: "1px solid rgba(168, 85, 247, 0.3)", borderRadius: "10px", padding: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "#c084fc", marginBottom: "8px" }}>
+                      <Sparkles size={14} /> Recommended Upsell Add-ons
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      {m.recommendations.map((rec) => (
+                        <div
+                          key={rec.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            background: "var(--bg-card)",
+                            padding: "6px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            fontSize: "12px",
+                          }}
+                        >
+                          <span>{rec.name} (₹{(rec.price / 100).toLocaleString("en-IN")})</span>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: "2px 8px", fontSize: "11px", color: "var(--success)" }}
+                            onClick={() => handleAddToCart(rec.id)}
+                          >
+                            + Add
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {m.role === "user" && (
+                <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: "var(--accent-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <User size={16} color="white" />
+                </div>
+              )}
+            </div>
+          ))}
+
+          {loading && (
+            <div style={{ display: "flex", gap: "10px", alignItems: "center", color: "var(--text-muted)", fontSize: "13px" }}>
+              <Sparkles size={16} className="animate-spin" color="var(--accent-primary)" />
+              RazorAI is reasoning and searching catalog...
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Quick Demo Action Chips */}
+        <div style={{ padding: "8px 20px", background: "var(--bg-secondary)", borderTop: "1px solid var(--border)", display: "flex", gap: "8px", overflowX: "auto" }}>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: "12px", padding: "4px 10px", whiteSpace: "nowrap" }}
+            onClick={() => handleSend("I need a gaming laptop under ₹70,000")}
+          >
+            💻 "Gaming laptop under ₹70k"
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: "12px", padding: "4px 10px", whiteSpace: "nowrap" }}
+            onClick={() => handleSend("Yes, recommend accessories for this laptop")}
+          >
+            🖱️ "Recommend accessories"
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: "12px", padding: "4px 10px", whiteSpace: "nowrap" }}
+            onClick={handleOpenCheckoutPreview}
+          >
+            🔒 "Proceed to Checkout"
+          </button>
+        </div>
+
+        {/* Input Bar */}
+        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: "10px", background: "var(--bg-card)" }}>
+          <input
+            type="text"
+            placeholder="Ask RazorAI about products, prices, bundles..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            style={{
+              flex: 1,
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: "8px",
+              padding: "10px 14px",
+              color: "white",
+              fontSize: "14px",
+              outline: "none",
+            }}
+          />
+          <button className="btn btn-primary" onClick={() => handleSend()} disabled={loading || !input.trim()}>
+            <Send size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Cart & Gated Checkout Sidebar */}
+      <div className="card" style={{ display: "flex", flexDirection: "column", height: "100%", padding: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "15px", fontWeight: 700 }}>
+            <ShoppingBag size={18} color="var(--accent-primary)" /> Live Cart
+          </div>
+          <span className="badge badge-accent">{cart.items.length} items</span>
+        </div>
+
+        {/* Cart Items */}
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+          {cart.items.length === 0 ? (
+            <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px 0", fontSize: "13px" }}>
+              Your cart is currently empty. Ask the AI agent to search and add items!
+            </div>
+          ) : (
+            cart.items.map((item) => (
+              <div key={item.id} style={{ background: "var(--bg-secondary)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>{item.product.name}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                  <span>Qty: {item.quantity}</span>
+                  <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+                    ₹{((item.product.price * item.quantity) / 100).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Cart Total & Checkout Button */}
+        <div style={{ borderTop: "1px solid var(--border)", paddingTop: "12px", marginTop: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 800, marginBottom: "12px" }}>
+            <span>Total:</span>
+            <span style={{ color: "var(--success)" }}>{cart.formattedTotal}</span>
+          </div>
+
+          <button
+            className="btn btn-primary"
+            style={{ width: "100%", padding: "12px" }}
+            onClick={handleOpenCheckoutPreview}
+            disabled={cart.items.length === 0}
+          >
+            <CreditCard size={16} /> Request Payment Approval
+          </button>
+        </div>
+      </div>
+
+      {/* APPROVAL & PAYMENT MODAL */}
+      {showApprovalModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "17px", fontWeight: 800 }}>
+                <ShieldAlert size={20} color="var(--warning)" />
+                Payment Approval Required
+              </div>
+              <button
+                onClick={() => setShowApprovalModal(false)}
+                style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {paymentStatus === "IDLE" ? (
+              <div>
+                <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "14px" }}>
+                  The AI sales agent generated an itemized checkout order. Customer approval is required before payment can proceed.
+                </p>
+
+                {/* Itemized breakdown */}
+                <div style={{ background: "var(--bg-card)", borderRadius: "10px", padding: "12px", border: "1px solid var(--border)", marginBottom: "16px" }}>
+                  {preview?.items?.map((i: any, idx: number) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "4px 0", borderBottom: idx < preview.items.length - 1 ? "1px solid var(--border)" : "none" }}>
+                      <span>{i.name} × {i.quantity}</span>
+                      <span style={{ fontWeight: 600 }}>₹{(i.total / 100).toLocaleString("en-IN")}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "16px", fontWeight: 800, marginTop: "8px", paddingTop: "8px", borderTop: "1px solid var(--border)" }}>
+                    <span>Authoritative Total:</span>
+                    <span style={{ color: "var(--success)" }}>{preview?.formattedTotal}</span>
+                  </div>
+                </div>
+
+                {/* Policy Checks Banner */}
+                <div style={{ background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "8px", padding: "10px", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "16px" }}>
+                  ✓ Stock available & verified<br />
+                  ✓ Price calculated server-side<br />
+                  ✓ Within merchant transaction limits (≤ ₹1,00,000)
+                </div>
+
+                {/* Action Buttons for Demo */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <button className="btn btn-primary" style={{ padding: "12px" }} onClick={handleApprovePayment} disabled={processingPayment}>
+                    <Check size={16} /> Approve & Pay ₹{(preview?.total / 100).toLocaleString("en-IN")}
+                  </button>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "4px" }}>
+                    <button
+                      className="btn btn-danger"
+                      style={{ fontSize: "12px" }}
+                      onClick={handleSimulateFailure}
+                      disabled={processingPayment}
+                    >
+                      <AlertCircle size={14} /> Demo Scene 2 (Simulate Failure)
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: "12px" }}
+                      onClick={() => setShowApprovalModal(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : paymentStatus === "SUCCESS" ? (
+              <div style={{ textAlign: "center", padding: "16px 0" }}>
+                <CheckCircle2 size={48} color="var(--success)" style={{ margin: "0 auto 12px auto" }} />
+                <h3 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)" }}>Payment Verified & Captured!</h3>
+                <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "6px" }}>
+                  Razorpay Order ID: <code style={{ color: "var(--cyan)" }}>{orderResult?.razorpayOrderId}</code>
+                </p>
+                <div style={{ background: "var(--bg-card)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border)", margin: "16px 0", fontSize: "13px" }}>
+                  Order status updated to <strong>PAID</strong> in PostgreSQL.<br />
+                  Immutable Audit Log recorded.
+                </div>
+                <button className="btn btn-primary" style={{ width: "100%" }} onClick={() => setShowApprovalModal(false)}>
+                  Done
+                </button>
+              </div>
+            ) : (
+              /* FAILURE STATE & RETRY */
+              <div style={{ padding: "8px 0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--danger)", marginBottom: "12px" }}>
+                  <XCircle size={28} />
+                  <div>
+                    <h3 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>Payment Unsuccessful</h3>
+                    <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>No successful payment was recorded for this order.</div>
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.25)", padding: "12px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>
+                  <strong>Reason:</strong> {failureReason}<br />
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                    Order ID: <code>{orderResult?.orderId}</code> (Status: FAILED)
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleRetryPayment} disabled={processingPayment}>
+                    <RefreshCcw size={16} /> Try Again (Retry Payment)
+                  </button>
+                  <button className="btn btn-secondary" onClick={() => setShowApprovalModal(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

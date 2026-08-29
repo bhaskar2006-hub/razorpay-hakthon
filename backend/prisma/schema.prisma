@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum AgentActionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  BLOCKED
+}
+
+enum AuditEventType {
+  AGENT_ACTION
+  PAYMENT
+  ORDER
+  APPROVAL
+  SECURITY
+}
+
+enum OrderSource {
+  HUMAN
+  AI_AGENT
+  AI_BUYER
+}
+
+model Merchant {
+  id                   String     @id @default(cuid())
+  name                 String
+  email                String     @unique
+  maxTransactionAmount Int        @default(5000000)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  products             Product[]
+  orders               Order[]
+  auditLogs            AuditLog[]
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  merchantId  String
+  name        String
+  description String?
+  category    String
+  price       Int
+  stock       Int         @default(0)
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  merchant    Merchant    @relation(fields: [merchantId], references: [id])
+  orderItems  OrderItem[]
+  cartItems   CartItem[]
+
+  @@index([merchantId])
+  @@index([category])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String?  @unique
+  createdAt DateTime @default(now())
+
+  orders    Order[]
+  cart      Cart?
+}
+
+model Cart {
+  id         String     @id @default(cuid())
+  customerId String     @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  items      CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int      @default(1)
+
+  cart      Cart     @relation(fields: [cartId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, productId])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  merchantId      String
+  customerId      String?
+  status          OrderStatus @default(PENDING)
+  subtotal        Int
+  upsellAmount    Int         @default(0)
+  totalAmount     Int
+  currency        String      @default("INR")
+  source          OrderSource @default(HUMAN)
+  razorpayOrderId String?     @unique
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  merchant        Merchant    @relation(fields: [merchantId], references: [id])
+  customer        Customer?   @relation(fields: [customerId], references: [id])
+  items           OrderItem[]
+  payments        Payment[]
+  auditLogs       AuditLog[]
+
+  @@index([merchantId])
+  @@index([customerId])
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  productId  String
+  quantity   Int
+  unitPrice  Int
+  totalPrice Int
+
+  order      Order   @relation(fields: [orderId], references: [id])
+  product    Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String
+  razorpayPaymentId String?       @unique
+  amount            Int
+  currency          String        @default("INR")
+  status            PaymentStatus @default(CREATED)
+  failureReason     String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  order             Order         @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+}
+
+model AgentSession {
+  id         String        @id @default(cuid())
+  customerId String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  actions    AgentAction[]
+}
+
+model AgentAction {
+  id               String            @id @default(cuid())
+  sessionId        String
+  action           String
+  input            Json?
+  output           Json?
+  amount           Int?
+  status           AgentActionStatus @default(PENDING)
+  requiresApproval Boolean           @default(false)
+  approved         Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+
+  session          AgentSession      @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+}
+
+model AuditLog {
+  id          String         @id @default(cuid())
+  merchantId  String
+  orderId     String?
+  eventType   AuditEventType
+  action      String
+  description String
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+
+  merchant    Merchant       @relation(fields: [merchantId], references: [id])
+  order       Order?         @relation(fields: [orderId], references: [id])
+
+  @@index([merchantId])
+  @@index([orderId])
+}
