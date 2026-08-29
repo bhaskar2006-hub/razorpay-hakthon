@@ -1,17 +1,17 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "RazorAI Backend Server",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
-    "build": "tsc",
+    "start": "node dist/server.js",
+    "build": "prisma generate && tsc",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "db:generate": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -28,13 +28,13 @@
     "express": "^5.2.1",
     "prisma": "^5.22.0",
     "razorpay": "^2.9.8",
+    "tsx": "^4.23.12",
     "zod": "^4.5.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.4.0",
-    "tsx": "^4.23.12",
     "typescript": "^5.9.3"
   }
 }
