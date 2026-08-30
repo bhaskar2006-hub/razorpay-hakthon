@@ -20,8 +20,6 @@ export default function AIBuyer({ customerId }: { customerId?: string }) {
   const [running, setRunning] = useState(false);
   const [proposal, setProposal] = useState<any>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [steps, setSteps] = useState<any[]>([]);
   const [approvedOrder, setApprovedOrder] = useState<any>(null);
 
   // Autopay Mandate States
@@ -33,6 +31,7 @@ export default function AIBuyer({ customerId }: { customerId?: string }) {
     mandateSpentMonthly: 0,
     razorpayMandateToken: "",
   });
+  const [loadingMandate, setLoadingMandate] = useState(true);
   const [updatingMandate, setUpdatingMandate] = useState(false);
 
   // Input fields for controls
@@ -346,7 +345,7 @@ export default function AIBuyer({ customerId }: { customerId?: string }) {
                   className="btn btn-danger"
                   style={{ flex: 1, fontSize: "13px" }}
                   onClick={() => handleUpdateMandateSettings(false)}
-                  disabled={updatingMandate}
+                  disabled={loadingMandate || updatingMandate}
                 >
                   Disable Autopay
                 </button>
@@ -363,7 +362,7 @@ export default function AIBuyer({ customerId }: { customerId?: string }) {
                 className="btn btn-primary"
                 style={{ flex: 1, fontSize: "13px", background: "var(--accent-gradient)", boxShadow: "0 0 15px rgba(99, 102, 241, 0.4)" }}
                 onClick={handleAuthorizeMandate}
-                disabled={updatingMandate}
+                disabled={loadingMandate || updatingMandate}
               >
                 {updatingMandate ? <RefreshCw size={14} className="animate-spin" /> : <ShieldCheck size={16} />}
                 Authenticate & Setup Autopay Mandate (₹1)
