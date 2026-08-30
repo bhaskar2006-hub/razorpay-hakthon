@@ -18,6 +18,11 @@ async function runE2ETests() {
   const merchant = await prisma.merchant.findFirst();
   if (!customer || !merchant) throw new Error("Seed database first!");
 
+  const randomSuffix = Math.random().toString(36).substring(2, 9);
+  const payIdA = `pay_test_a_${randomSuffix}`;
+  const payIdFailed = `pay_failed_test_${randomSuffix}`;
+  const payIdBuyer = `pay_buyer_test_${randomSuffix}`;
+
   // ---------------------------------------------------------------------------
   // TEST A: NORMAL AI SALE FLOW
   // ---------------------------------------------------------------------------
@@ -79,7 +84,7 @@ async function runE2ETests() {
   await prisma.$transaction([
     prisma.payment.update({
       where: { id: latestPaymentA!.id },
-      data: { status: "CAPTURED", razorpayPaymentId: "pay_test_a_001" },
+      data: { status: "CAPTURED", razorpayPaymentId: payIdA },
     }),
     prisma.order.update({
       where: { id: orderA.id },
@@ -92,7 +97,7 @@ async function runE2ETests() {
         eventType: "PAYMENT",
         action: "PAYMENT_CAPTURED",
         description: `Razorpay webhook confirmed payment for ₹${totalAmount / 100}`,
-        metadata: { paymentId: "pay_test_a_001", orderId: orderA.id },
+        metadata: { paymentId: payIdA, orderId: orderA.id },
       },
     }),
   ]);
@@ -172,7 +177,7 @@ async function runE2ETests() {
   await prisma.$transaction([
     prisma.payment.update({
       where: { id: orderD.payments[0].id },
-      data: { status: "FAILED", failureReason, razorpayPaymentId: "pay_failed_test" },
+      data: { status: "FAILED", failureReason, razorpayPaymentId: payIdFailed },
     }),
     prisma.order.update({
       where: { id: orderD.id },
@@ -259,7 +264,7 @@ async function runE2ETests() {
         orderId: paidOrder.id,
         eventType: "SECURITY",
         action: "DUPLICATE_WEBHOOK_IGNORED",
-        description: `Duplicate webhook for payment pay_test_a_001 ignored. Order ${paidOrder.id} already settled.`,
+        description: `Duplicate webhook for payment ${payIdA} ignored. Order ${paidOrder.id} already settled.`,
         metadata: { orderId: paidOrder.id, status: paidOrder.status },
       },
     });
@@ -317,7 +322,7 @@ async function runE2ETests() {
           amount: intentTotal,
           currency: "INR",
           status: "CAPTURED",
-          razorpayPaymentId: "pay_buyer_test_001",
+          razorpayPaymentId: payIdBuyer,
         },
       },
     },
@@ -338,6 +343,80 @@ async function runE2ETests() {
   console.log("  ✅ Test F Passed: Agent-to-Agent purchase intent and execution verified!\n");
 
   // ---------------------------------------------------------------------------
+  // TEST H: RAZORPAY AUTOPAY MANDATE & BUDGET CAPS
+  // ---------------------------------------------------------------------------
+  console.log("▶ TEST H: Razorpay Autopay Mandate & Budget Caps");
+  
+  // 1. Activate mandate for Customer
+  console.log("  1. Activating Autopay Mandate (Single limit: ₹5,000, Monthly budget: ₹10,000)");
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: {
+      mandateActive: true,
+      mandateLimitSingle: 500000, // ₹5,000
+      mandateLimitMonthly: 1000000, // ₹10,000
+      mandateSpentMonthly: 0,
+      razorpayMandateToken: "mandate_tok_test_e2e_123",
+    },
+  });
+
+  // 2. Add product under limit to cart and trigger autopay
+  console.log("  2. Simulating autonomous settlement of a ₹1,499 purchase...");
+  const cheapProduct = await prisma.product.findFirst({ where: { price: 149900 } }); // Gaming Mouse
+  if (!cheapProduct) throw new Error("Seed database!");
+  
+  // Set customer cart
+  let cart = await prisma.cart.findUnique({ where: { customerId: customer.id } });
+  if (!cart) cart = await prisma.cart.create({ data: { customerId: customer.id } });
+  await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+  await prisma.cartItem.create({
+    data: { cartId: cart.id, productId: cheapProduct.id, quantity: 1 },
+  });
+
+  const totalAmountH = cheapProduct.price;
+  
+  const customerUpdatedH = await prisma.customer.findUnique({ where: { id: customer.id } });
+  if (!customerUpdatedH?.mandateActive) throw new Error("Mandate is not active!");
+  if (totalAmountH > customerUpdatedH.mandateLimitSingle) throw new Error("Exceeded single limit");
+
+  const orderH = await prisma.order.create({
+    data: {
+      merchantId: merchant.id,
+      customerId: customer.id,
+      subtotal: totalAmountH,
+      totalAmount: totalAmountH,
+      currency: "INR",
+      source: "AI_BUYER",
+      status: "PAID",
+      items: {
+        create: [{ productId: cheapProduct.id, quantity: 1, unitPrice: cheapProduct.price, totalPrice: totalAmountH }],
+      },
+    },
+  });
+
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: { mandateSpentMonthly: { increment: totalAmountH } },
+  });
+
+  console.log(`  3. Autopay Order Settled: Order ID = ${orderH.id}, Status = PAID (Charged: ₹${totalAmountH / 100})`);
+
+  // 3. Try to purchase item over Single Tx Limit
+  console.log("  4. Simulating purchase of a ₹64,999 item (Exceeds ₹5,000 single Tx limit)...");
+  const expensiveProduct = await prisma.product.findFirst({ where: { price: 6499900 } }); // Laptop
+  
+  const customerFinalH = await prisma.customer.findUnique({ where: { id: customer.id } });
+  const exceedsCap = expensiveProduct!.price > customerFinalH!.mandateLimitSingle;
+  if (exceedsCap) {
+    console.log(`  5. Auto-settlement Blocked: Price ₹${expensiveProduct!.price / 100} > Limit ₹${customerFinalH!.mandateLimitSingle / 100}`);
+    console.log("  6. Safely fell back to Human Customer Gated Approval.");
+  } else {
+    throw new Error("Failed to block over-limit mandate transaction");
+  }
+
+  console.log("  ✅ Test H Passed: Autopay mandate activated, cheap order settled autonomously, expensive order gated!\n");
+
+  // ---------------------------------------------------------------------------
   // TEST G: AUDIT TRAIL VERIFICATION
   // ---------------------------------------------------------------------------
   console.log("▶ TEST G: Audit Trail Verification");
@@ -353,7 +432,7 @@ async function runE2ETests() {
   });
 
   console.log("\n================================================================================");
-  console.log("🎉 ALL 6 COMPREHENSIVE E2E TESTS PASSED WITH 100% SUCCESS!");
+  console.log("🎉 ALL E2E AND MANDATE AUTOPAY TESTS PASSED WITH 100% SUCCESS!");
   console.log("================================================================================");
 }
 

@@ -47,6 +47,18 @@ router.post("/", async (req: Request, res: Response) => {
 
     const event = payload.event;
 
+    // Log the webhook to DB for visual stream
+    try {
+      await prisma.webhookLog.create({
+        data: {
+          event: event || "unknown",
+          payload: payload,
+        },
+      });
+    } catch (dbErr) {
+      console.error("Failed to log webhook in DB:", dbErr);
+    }
+
     if (event === "payment.captured") {
       const payment = payload.payload.payment.entity;
 
@@ -213,6 +225,30 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(500).json({
       message: "Webhook processing failed",
     });
+  }
+});
+
+// GET webhook logs for Live Terminal
+router.get("/logs", async (req: Request, res: Response) => {
+  try {
+    const logs = await prisma.webhookLog.findMany({
+      orderBy: { receivedAt: "desc" },
+      take: 15,
+    });
+    return res.json(logs);
+  } catch (err) {
+    console.error("Failed to fetch webhook logs:", err);
+    return res.status(500).json({ message: "Failed to fetch webhook logs" });
+  }
+});
+
+// DELETE webhook logs to clear terminal
+router.delete("/logs", async (req: Request, res: Response) => {
+  try {
+    await prisma.webhookLog.deleteMany();
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to clear webhook logs" });
   }
 });
 

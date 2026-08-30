@@ -82,6 +82,12 @@ model Customer {
   email     String?  @unique
   createdAt DateTime @default(now())
 
+  mandateActive       Boolean  @default(false)
+  mandateLimitSingle  Int      @default(500000)
+  mandateLimitMonthly Int      @default(2000000)
+  mandateSpentMonthly Int      @default(0)
+  razorpayMandateToken String?
+
   orders    Order[]
   cart      Cart?
 }
@@ -203,4 +209,11 @@ model AuditLog {
 
   @@index([merchantId])
   @@index([orderId])
+}
+
+model WebhookLog {
+  id         String   @id @default(cuid())
+  event      String
+  payload    Json
+  receivedAt DateTime @default(now())
 }

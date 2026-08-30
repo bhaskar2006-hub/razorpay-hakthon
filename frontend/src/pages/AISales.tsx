@@ -16,7 +16,11 @@ import {
   AlertCircle,
   CheckCircle2,
   RefreshCcw,
+  RefreshCw,
   Trash2,
+  Copy,
+  QrCode,
+  Coins,
 } from "lucide-react";
 
 interface Message {
@@ -64,6 +68,15 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
   const [orderResult, setOrderResult] = useState<any>(null);
   const [paymentStatus, setPaymentStatus] = useState<"IDLE" | "SUCCESS" | "FAILED">("IDLE");
   const [failureReason, setFailureReason] = useState<string>("");
+
+  // Advanced Checkout States
+  const [modalTab, setModalTab] = useState<"checkout" | "affordability" | "share">("checkout");
+  const [affordabilityData, setAffordabilityData] = useState<any>(null);
+  const [loadingAffordability, setLoadingAffordability] = useState(false);
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState("");
+  const [creatingPaymentLink, setCreatingPaymentLink] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [selectedBankIdx, setSelectedBankIdx] = useState(0);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -169,6 +182,18 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
     }
   };
 
+  const fetchAffordability = async (amount: number) => {
+    try {
+      setLoadingAffordability(true);
+      const res = await api.get(`/checkout/affordability?amount=${amount}`);
+      setAffordabilityData(res.data);
+    } catch (err) {
+      console.error("Failed to fetch affordability:", err);
+    } finally {
+      setLoadingAffordability(false);
+    }
+  };
+
   const handleOpenCheckoutPreview = async () => {
     try {
       const res = await api.post("/checkout/preview", { customerId });
@@ -176,9 +201,41 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
       setShowApprovalModal(true);
       setOrderResult(null);
       setPaymentStatus("IDLE");
+      setModalTab("checkout");
+      setPaymentLinkUrl("");
+      fetchAffordability(res.data.total);
     } catch (err: any) {
       alert(err.response?.data?.message || "Unable to generate checkout preview. Ensure cart is not empty.");
     }
+  };
+
+  const handleCreatePaymentLink = async () => {
+    if (creatingPaymentLink) return;
+    setCreatingPaymentLink(true);
+    setPaymentLinkUrl("");
+    try {
+      const approveRes = await api.post("/checkout/approve", {
+        customerId,
+        userApproved: true,
+        expectedTotal: preview?.total,
+      });
+      setOrderResult(approveRes.data);
+
+      const linkRes = await api.post("/checkout/payment-link", {
+        orderId: approveRes.data.orderId,
+      });
+      setPaymentLinkUrl(linkRes.data.shortUrl);
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to create payment link");
+    } finally {
+      setCreatingPaymentLink(false);
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(paymentLinkUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleApprovePayment = async () => {
@@ -604,11 +661,11 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
       {/* APPROVAL & PAYMENT MODAL */}
       {showApprovalModal && (
         <div className="modal-backdrop">
-          <div className="modal-content">
+          <div className="modal-content" style={{ maxWidth: "600px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "17px", fontWeight: 800 }}>
-                <ShieldAlert size={20} color="var(--warning)" />
-                Payment Approval Required
+                <ShieldAlert size={20} color="var(--accent-primary)" />
+                Razorpay Checkout Options
               </div>
               <button
                 onClick={() => setShowApprovalModal(false)}
@@ -618,57 +675,211 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
               </button>
             </div>
 
+            {/* Modal Tabs Selection */}
+            {paymentStatus === "IDLE" && (
+              <div style={{ display: "flex", borderBottom: "1px solid var(--border)", marginBottom: "16px", gap: "4px" }}>
+                {[
+                  { id: "checkout", label: "💳 Pay Now" },
+                  { id: "affordability", label: "⚡ EMI / BNPL" },
+                  { id: "share", label: "🔗 Share Link" }
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setModalTab(t.id as any)}
+                    style={{
+                      padding: "8px 16px",
+                      background: "transparent",
+                      border: "none",
+                      color: modalTab === t.id ? "#818cf8" : "var(--text-secondary)",
+                      borderBottom: modalTab === t.id ? "2px solid #818cf8" : "2px solid transparent",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      transition: "all 0.15s"
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {paymentStatus === "IDLE" ? (
               <div>
-                <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "14px" }}>
-                  The AI sales agent generated an itemized checkout order. Customer approval is required before payment can proceed.
-                </p>
+                {modalTab === "checkout" && (
+                  <div>
+                    <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "14px" }}>
+                      The AI sales agent generated an itemized checkout order. Customer approval is required before payment can proceed.
+                    </p>
 
-                {/* Itemized breakdown */}
-                <div style={{ background: "var(--bg-card)", borderRadius: "10px", padding: "12px", border: "1px solid var(--border)", marginBottom: "16px" }}>
-                  {preview?.items?.map((i: any, idx: number) => (
-                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "4px 0", borderBottom: idx < preview.items.length - 1 ? "1px solid var(--border)" : "none" }}>
-                      <span>{i.name} × {i.quantity}</span>
-                      <span style={{ fontWeight: 600 }}>₹{(i.total / 100).toLocaleString("en-IN")}</span>
+                    {/* Itemized breakdown */}
+                    <div style={{ background: "var(--bg-card)", borderRadius: "10px", padding: "12px", border: "1px solid var(--border)", marginBottom: "16px" }}>
+                      {preview?.items?.map((i: any, idx: number) => (
+                        <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "4px 0", borderBottom: idx < preview.items.length - 1 ? "1px solid var(--border)" : "none" }}>
+                          <span>{i.name} × {i.quantity}</span>
+                          <span style={{ fontWeight: 600 }}>₹{(i.total / 100).toLocaleString("en-IN")}</span>
+                        </div>
+                      ))}
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "16px", fontWeight: 800, marginTop: "8px", paddingTop: "8px", borderTop: "1px solid var(--border)" }}>
+                        <span>Authoritative Total:</span>
+                        <span style={{ color: "var(--success)" }}>{preview?.formattedTotal}</span>
+                      </div>
                     </div>
-                  ))}
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "16px", fontWeight: 800, marginTop: "8px", paddingTop: "8px", borderTop: "1px solid var(--border)" }}>
-                    <span>Authoritative Total:</span>
-                    <span style={{ color: "var(--success)" }}>{preview?.formattedTotal}</span>
+
+                    {/* Policy Checks Banner */}
+                    <div style={{ background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "8px", padding: "10px", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "16px" }}>
+                      ✓ Stock available & verified<br />
+                      ✓ Price calculated server-side<br />
+                      ✓ Within merchant transaction limits (≤ ₹1,00,000)
+                    </div>
+
+                    {/* Action Buttons for Demo */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <button className="btn btn-primary" style={{ padding: "12px" }} onClick={handleApprovePayment} disabled={processingPayment}>
+                        <Check size={16} /> Approve & Pay ₹{(preview?.total / 100).toLocaleString("en-IN")}
+                      </button>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "4px" }}>
+                        <button
+                          className="btn btn-danger"
+                          style={{ fontSize: "12px" }}
+                          onClick={handleSimulateFailure}
+                          disabled={processingPayment}
+                        >
+                          <AlertCircle size={14} /> Demo Scene 2 (Simulate Failure)
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ fontSize: "12px" }}
+                          onClick={() => setShowApprovalModal(false)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Policy Checks Banner */}
-                <div style={{ background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "8px", padding: "10px", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "16px" }}>
-                  ✓ Stock available & verified<br />
-                  ✓ Price calculated server-side<br />
-                  ✓ Within merchant transaction limits (≤ ₹1,00,000)
-                </div>
+                {modalTab === "affordability" && (
+                  <div>
+                    <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "14px" }}>
+                      Eligible credit EMI options and Buy Now Pay Later networks fetched dynamically via Razorpay Affordability.
+                    </p>
 
-                {/* Action Buttons for Demo */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <button className="btn btn-primary" style={{ padding: "12px" }} onClick={handleApprovePayment} disabled={processingPayment}>
-                    <Check size={16} /> Approve & Pay ₹{(preview?.total / 100).toLocaleString("en-IN")}
-                  </button>
+                    {loadingAffordability ? (
+                      <div style={{ textAlign: "center", padding: "30px" }}>
+                        <RefreshCw size={24} className="animate-spin" color="var(--accent-primary)" />
+                        <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "8px" }}>Loading payment options...</div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                        {/* CC EMI Section */}
+                        {affordabilityData?.emiPlans && affordabilityData.emiPlans.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Credit Card EMI Options</span>
+                              {/* Select Bank */}
+                              <select
+                                value={selectedBankIdx}
+                                onChange={(e) => setSelectedBankIdx(Number(e.target.value))}
+                                style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", color: "white", padding: "4px 8px", borderRadius: "6px", fontSize: "12px" }}
+                              >
+                                {affordabilityData.emiPlans.map((bank: any, idx: number) => (
+                                  <option key={bank.bankCode} value={idx}>{bank.bankName}</option>
+                                ))}
+                              </select>
+                            </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "4px" }}>
-                    <button
-                      className="btn btn-danger"
-                      style={{ fontSize: "12px" }}
-                      onClick={handleSimulateFailure}
-                      disabled={processingPayment}
-                    >
-                      <AlertCircle size={14} /> Demo Scene 2 (Simulate Failure)
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ fontSize: "12px" }}
-                      onClick={() => setShowApprovalModal(false)}
-                    >
-                      Cancel
-                    </button>
+                            {/* Plan Grid */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                              {affordabilityData.emiPlans[selectedBankIdx]?.plans?.map((plan: any) => (
+                                <div key={plan.months} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", padding: "10px", borderRadius: "8px", display: "flex", flexDirection: "column" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", fontWeight: 700, color: "#818cf8" }}>
+                                    <span>{plan.months} Months</span>
+                                    <span>{plan.interestRate}% pa</span>
+                                  </div>
+                                  <div style={{ fontSize: "16px", fontWeight: 800, marginTop: "4px" }}>{plan.formattedEmi}/mo</div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                                    <span>Total Cost: {plan.formattedTotalCost}</span>
+                                    <span>Interest: {plan.formattedInterestCharged}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* BNPL Section */}
+                        {affordabilityData?.bnpl && affordabilityData.bnpl.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                            <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Buy Now Pay Later (BNPL) networks</span>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                              {affordabilityData.bnpl.map((provider: any) => (
+                                <div key={provider.provider} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-card)", border: "1px solid var(--border)", padding: "10px 14px", borderRadius: "8px" }}>
+                                  <div>
+                                    <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)" }}>{provider.provider}</span>
+                                    <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{provider.description}</div>
+                                  </div>
+                                  <div style={{ fontSize: "14px", fontWeight: 800, color: "var(--success)" }}>{provider.formattedInstallment}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
+
+                {modalTab === "share" && (
+                  <div style={{ textAlign: "center", padding: "10px 0" }}>
+                    <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "16px", textAlign: "left" }}>
+                      Generate an authenticated Razorpay Payment Link. You can send this short link to the customer via SMS/Email, or let them scan the QR code to pay on a mobile device.
+                    </p>
+
+                    {!paymentLinkUrl ? (
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleCreatePaymentLink}
+                        disabled={creatingPaymentLink}
+                        style={{ padding: "12px 24px", background: "var(--accent-gradient)", boxShadow: "0 0 15px rgba(99, 102, 241, 0.4)" }}
+                      >
+                        {creatingPaymentLink ? <RefreshCw size={16} className="animate-spin" /> : <QrCode size={16} />}
+                        {creatingPaymentLink ? "Creating Payment Link..." : "Create Razorpay Payment Link & QR"}
+                      </button>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
+                        {/* Copy Link Input */}
+                        <div style={{ display: "flex", width: "100%", gap: "8px" }}>
+                          <input
+                            type="text"
+                            value={paymentLinkUrl}
+                            readOnly
+                            style={{ flex: 1, background: "var(--bg-secondary)", border: "1px solid var(--border)", padding: "8px 12px", color: "var(--cyan)", borderRadius: "8px", fontSize: "13px", fontWeight: 600 }}
+                          />
+                          <button className="btn btn-secondary" onClick={handleCopyLink} style={{ gap: "4px" }}>
+                            {copiedLink ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
+                            {copiedLink ? "Copied!" : "Copy"}
+                          </button>
+                        </div>
+
+                        {/* QR Code Container */}
+                        <div style={{ background: "white", padding: "14px", borderRadius: "12px", display: "inline-flex", flexDirection: "column", alignItems: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.5)" }}>
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(paymentLinkUrl)}&size=150x150`}
+                            alt="Payment Link QR Code"
+                            style={{ width: "150px", height: "150px" }}
+                          />
+                          <span style={{ fontSize: "11px", color: "#374151", fontWeight: 700, marginTop: "8px" }}>Scan to Pay with Phone</span>
+                        </div>
+
+                        <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
+                          Attribution order: <code>{orderResult?.orderId}</code>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : paymentStatus === "SUCCESS" ? (
               <div style={{ textAlign: "center", padding: "16px 0" }}>

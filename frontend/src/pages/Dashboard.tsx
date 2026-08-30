@@ -13,6 +13,8 @@ import {
   Bot,
   User,
   ShieldCheck,
+  Terminal,
+  X,
 } from "lucide-react";
 
 interface SummaryData {
@@ -59,6 +61,28 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (tab: string) =
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Webhook Stream states
+  const [webhookLogs, setWebhookLogs] = useState<any[]>([]);
+  const [inspectedLog, setInspectedLog] = useState<any>(null);
+
+  const fetchWebhookLogs = async () => {
+    try {
+      const res = await api.get("/webhooks/logs");
+      setWebhookLogs(res.data);
+    } catch (err) {
+      console.error("Failed to fetch webhook logs:", err);
+    }
+  };
+
+  const clearWebhookLogs = async () => {
+    try {
+      await api.delete("/webhooks/logs");
+      setWebhookLogs([]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -77,6 +101,14 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (tab: string) =
 
   useEffect(() => {
     loadData();
+    fetchWebhookLogs();
+    
+    // Poll for webhook logs every 3 seconds
+    const interval = setInterval(() => {
+      fetchWebhookLogs();
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -390,6 +422,83 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (tab: string) =
           </div>
         </div>
       </div>
+
+      {/* Webhook logs stream */}
+      <div className="card" style={{ display: "flex", flexDirection: "column", gap: "12px", border: "1px solid var(--border-accent)", background: "linear-gradient(180deg, rgba(99, 102, 241, 0.02) 0%, rgba(24, 26, 34, 1) 100%)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <Terminal size={18} color="#818cf8" />
+            <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)" }}>
+              ⚡ Live Razorpay Webhook Event Stream Terminal
+            </h3>
+            <span className="badge badge-accent" style={{ background: "rgba(16, 185, 129, 0.12)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--success)", display: "inline-block", marginRight: "4px" }} /> Listening
+            </span>
+          </div>
+          <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={clearWebhookLogs}>
+            Clear Logs
+          </button>
+        </div>
+
+        <div style={{ background: "#0a0b0e", border: "1px solid var(--border)", borderRadius: "8px", height: "200px", overflowY: "auto", fontFamily: "var(--font-mono)", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+          {webhookLogs.length === 0 ? (
+            <div style={{ color: "var(--text-muted)", fontSize: "12px", textAlign: "center", padding: "70px 0" }}>
+              No incoming webhook events detected. Try making a payment in the chat or buyer page!
+            </div>
+          ) : (
+            webhookLogs.map((log: any) => (
+              <div key={log.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "6px", fontSize: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    fontWeight: 700,
+                    fontSize: "11px",
+                    background: log.event.includes("captured") || log.event.includes("paid") ? "rgba(16, 185, 129, 0.12)" : log.event.includes("failed") ? "rgba(239, 68, 68, 0.12)" : "var(--bg-accent)",
+                    color: log.event.includes("captured") || log.event.includes("paid") ? "var(--success)" : log.event.includes("failed") ? "var(--danger)" : "#818cf8",
+                    border: log.event.includes("captured") || log.event.includes("paid") ? "1px solid rgba(16, 185, 129, 0.3)" : log.event.includes("failed") ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid var(--border-accent)"
+                  }}>
+                    {log.event}
+                  </span>
+                  <span style={{ color: "var(--text-muted)", fontSize: "11px" }}>{new Date(log.receivedAt).toLocaleTimeString()}</span>
+                </div>
+                <button
+                  onClick={() => setInspectedLog(log)}
+                  style={{ background: "transparent", border: "none", color: "var(--cyan)", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}
+                >
+                  View JSON Payload &rarr;
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Webhook JSON inspector modal */}
+      {inspectedLog && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: "650px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ fontSize: "16px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}>
+                <Terminal size={18} color="var(--cyan)" />
+                Webhook Payload: <code style={{ color: "var(--success)" }}>{inspectedLog.event}</code>
+              </div>
+              <button
+                onClick={() => setInspectedLog(null)}
+                style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <pre style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", padding: "14px", borderRadius: "10px", maxHeight: "380px", overflow: "auto", fontSize: "12px", color: "var(--cyan)", fontFamily: "var(--font-mono)" }}>
+              {JSON.stringify(inspectedLog.payload, null, 2)}
+            </pre>
+            <button className="btn btn-secondary" style={{ width: "100%", marginTop: "16px" }} onClick={() => setInspectedLog(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
