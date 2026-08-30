@@ -12,20 +12,19 @@ import {
   ShieldCheck,
   AlertTriangle,
   Coins,
-  Settings,
-  ArrowRight,
-  TrendingUp,
 } from "lucide-react";
 
 export default function AIBuyer({ customerId }: { customerId?: string }) {
   const [goal, setGoal] = useState("Find a gaming laptop under ₹70,000 with a recommended accessory and prepare order");
-  const [maxBudget, setMaxBudget] = useState(70000);
+  const [maxBudget, setMaxBudget] = useState(7000);
   const [running, setRunning] = useState(false);
   const [proposal, setProposal] = useState<any>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [steps, setSteps] = useState<any[]>([]);
   const [approvedOrder, setApprovedOrder] = useState<any>(null);
 
-  // Mandate & Spending Controls State
+  // Autopay Mandate States
   const [mandate, setMandate] = useState({
     id: "",
     mandateActive: false,
@@ -34,7 +33,6 @@ export default function AIBuyer({ customerId }: { customerId?: string }) {
     mandateSpentMonthly: 0,
     razorpayMandateToken: "",
   });
-  const [loadingMandate, setLoadingMandate] = useState(true);
   const [updatingMandate, setUpdatingMandate] = useState(false);
 
   // Input fields for controls

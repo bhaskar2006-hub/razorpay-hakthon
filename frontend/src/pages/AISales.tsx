@@ -20,7 +20,6 @@ import {
   Trash2,
   Copy,
   QrCode,
-  Coins,
 } from "lucide-react";
 
 interface Message {
