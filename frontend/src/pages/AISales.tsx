@@ -457,6 +457,13 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
         <div style={{ padding: "8px 20px", background: "var(--bg-secondary)", borderTop: "1px solid var(--border)", display: "flex", gap: "8px", overflowX: "auto" }}>
           <button
             className="btn btn-secondary"
+            style={{ fontSize: "12px", padding: "4px 10px", whiteSpace: "nowrap", border: "1px solid var(--accent-primary)", color: "#818cf8" }}
+            onClick={() => handleSend("Show me the 1 rupee demo item")}
+          >
+            ⚡ "₹1 Live Demo Item"
+          </button>
+          <button
+            className="btn btn-secondary"
             style={{ fontSize: "12px", padding: "4px 10px", whiteSpace: "nowrap" }}
             onClick={() => handleSend("I need a gaming laptop under ₹70,000")}
           >

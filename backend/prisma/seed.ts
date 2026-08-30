@@ -55,8 +55,15 @@ async function main() {
     customerNames.map((c) => prisma.customer.create({ data: c }))
   );
 
-  // 4. Create 10 Products with realistic categories & pricing in paise
+  // 4. Create Products with realistic categories & pricing in paise
   const productsData = [
+    {
+      name: "⚡ RazorAI 1-Rupee Demo Item",
+      description: "Instant ₹1 live test transaction item for checkout and webhook verification",
+      category: "demo",
+      price: 100, // ₹1.00 = 100 paise
+      stock: 999,
+    },
     {
       name: "Gaming Laptop X",
       description: "16GB RAM, RTX 4060 GPU, 1TB SSD, 144Hz FHD Display",
