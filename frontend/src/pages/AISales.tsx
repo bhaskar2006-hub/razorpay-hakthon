@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
+import { openRazorpayCheckout } from "../lib/razorpay";
 import {
   Send,
   Sparkles,
@@ -190,20 +191,53 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
       });
 
       setOrderResult(res.data);
-      // Simulate real verification
-      await api.post("/payments/verify", {
-        razorpay_order_id: res.data.razorpayOrderId,
-        razorpay_payment_id: `pay_${Date.now()}`,
-        razorpay_signature: "mock_valid_signature", // In production uses real Razorpay checkout callback
-      });
 
-      setPaymentStatus("SUCCESS");
-      await fetchCart();
+      await openRazorpayCheckout({
+        orderId: res.data.orderId,
+        razorpayOrderId: res.data.razorpayOrderId,
+        amount: res.data.amount,
+        currency: res.data.currency || "INR",
+        description: `RazorAI Order: ₹${((res.data.amount || 0) / 100).toLocaleString("en-IN")}`,
+        onSuccess: async (response) => {
+          try {
+            await api.post("/payments/verify", {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            setPaymentStatus("SUCCESS");
+            await fetchCart();
+          } catch (verifyErr: any) {
+            setPaymentStatus("FAILED");
+            setFailureReason(verifyErr.response?.data?.message || "Payment signature verification failed");
+          } finally {
+            setProcessingPayment(false);
+          }
+        },
+        onFailure: async (error: any) => {
+          try {
+            const failRes = await api.post("/payments/fail", {
+              orderId: res.data.orderId,
+              razorpay_order_id: error?.metadata?.order_id || res.data.razorpayOrderId,
+              razorpay_payment_id: error?.metadata?.payment_id,
+              reason: error?.description || "Payment failed or cancelled",
+            });
+            setFailureReason(failRes.data?.explanation || error?.description || "Payment failed");
+          } catch (e) {
+            setFailureReason(error?.description || "Payment failed");
+          } finally {
+            setPaymentStatus("FAILED");
+            setProcessingPayment(false);
+          }
+        },
+        onDismiss: () => {
+          setProcessingPayment(false);
+        },
+      });
     } catch (err: any) {
       console.error("Approval error:", err);
       setPaymentStatus("FAILED");
       setFailureReason(err.response?.data?.message || "Payment approval failed by Policy Engine");
-    } finally {
       setProcessingPayment(false);
     }
   };
@@ -241,12 +275,52 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
     try {
       const res = await api.post(`/orders/${orderResult.orderId}/retry`);
       setOrderResult(res.data);
-      setPaymentStatus("SUCCESS");
-      await fetchCart();
+
+      await openRazorpayCheckout({
+        orderId: res.data.orderId,
+        razorpayOrderId: res.data.razorpayOrderId,
+        amount: res.data.amount,
+        currency: res.data.currency || "INR",
+        description: `Retry Payment: ₹${((res.data.amount || 0) / 100).toLocaleString("en-IN")}`,
+        onSuccess: async (response) => {
+          try {
+            await api.post("/payments/verify", {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            setPaymentStatus("SUCCESS");
+            await fetchCart();
+          } catch (verifyErr: any) {
+            setPaymentStatus("FAILED");
+            setFailureReason(verifyErr.response?.data?.message || "Payment signature verification failed");
+          } finally {
+            setProcessingPayment(false);
+          }
+        },
+        onFailure: async (error: any) => {
+          try {
+            const failRes = await api.post("/payments/fail", {
+              orderId: res.data.orderId,
+              razorpay_order_id: error?.metadata?.order_id || res.data.razorpayOrderId,
+              razorpay_payment_id: error?.metadata?.payment_id,
+              reason: error?.description || "Payment retry failed",
+            });
+            setFailureReason(failRes.data?.explanation || error?.description || "Payment failed");
+          } catch (e) {
+            setFailureReason(error?.description || "Payment failed");
+          } finally {
+            setPaymentStatus("FAILED");
+            setProcessingPayment(false);
+          }
+        },
+        onDismiss: () => {
+          setProcessingPayment(false);
+        },
+      });
     } catch (err: any) {
       setPaymentStatus("FAILED");
       setFailureReason(err.response?.data?.message || "Retry failed");
-    } finally {
       setProcessingPayment(false);
     }
   };

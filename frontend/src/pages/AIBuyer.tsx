@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
+import { openRazorpayCheckout } from "../lib/razorpay";
 import {
   Bot,
   Sparkles,
@@ -9,7 +10,7 @@ import {
   Cpu,
 } from "lucide-react";
 
-export default function AIBuyer({ customerId = "cmtepv2i300018wql42g5vvlc" }: { customerId?: string }) {
+export default function AIBuyer({ customerId }: { customerId?: string }) {
   const [goal, setGoal] = useState("Find a gaming laptop under ₹70,000 with a recommended accessory and prepare order");
   const [maxBudget, setMaxBudget] = useState(70000);
   const [running, setRunning] = useState(false);
@@ -49,15 +50,30 @@ export default function AIBuyer({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
         expectedTotal: proposal.cart.total,
       });
 
-      // Verify payment
-      await api.post("/payments/verify", {
-        razorpay_order_id: res.data.razorpayOrderId,
-        razorpay_payment_id: `pay_buyer_${Date.now()}`,
-        razorpay_signature: "mock_buyer_signature",
-      });
-
       setApprovedOrder(res.data);
-      setPaymentSuccess(true);
+
+      await openRazorpayCheckout({
+        orderId: res.data.orderId,
+        razorpayOrderId: res.data.razorpayOrderId,
+        amount: res.data.amount,
+        currency: res.data.currency || "INR",
+        description: `AI Buyer Proposal: ₹${((res.data.amount || 0) / 100).toLocaleString("en-IN")}`,
+        onSuccess: async (response) => {
+          try {
+            await api.post("/payments/verify", {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            setPaymentSuccess(true);
+          } catch (err: any) {
+            alert(err.response?.data?.message || "Payment verification failed");
+          }
+        },
+        onFailure: (err) => {
+          alert(`Payment failed: ${err?.description || "Transaction cancelled"}`);
+        },
+      });
     } catch (err: any) {
       alert(err.response?.data?.message || "Failed to process proposal approval");
     }
