@@ -1,8 +1,53 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { verifyPaymentSignature } from "../lib/payment-verification";
+import { createPaymentRequest } from "../services/payment.service";
 
 const router = Router();
+
+// CREATE Razorpay Order (Server-Side Bounded & Gated)
+router.post(["/create", "/create-order"], async (req: Request, res: Response) => {
+  try {
+    const { orderId, customerId, merchantId, approval = true } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({ message: "orderId is required" });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { merchant: true },
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const result = await createPaymentRequest({
+      customerId: customerId || order.customerId || "",
+      merchantId: merchantId || order.merchantId,
+      orderId: order.id,
+      approval: Boolean(approval),
+    });
+
+    if (!result.allowed) {
+      return res.status(400).json({
+        message: "Payment creation rejected by policy engine",
+        reasons: result.reasons,
+      });
+    }
+
+    return res.json({
+      razorpay_order_id: result.razorpayOrderId,
+      amount: order.totalAmount,
+      currency: order.currency,
+      key_id: process.env.RAZORPAY_KEY_ID,
+    });
+  } catch (error: any) {
+    console.error("Payment create order error:", error);
+    return res.status(500).json({ message: "Failed to create payment order" });
+  }
+});
 
 // VERIFY Payment Signature (Success)
 router.post("/verify", async (req: Request, res: Response) => {
