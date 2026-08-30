@@ -14,28 +14,27 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Ensure customer exists or fallback to first customer
-    let validCustomer = await prisma.customer.findUnique({ where: { id: customerId } });
-    if (!validCustomer) {
-      validCustomer = await prisma.customer.findFirst();
-      if (!validCustomer) {
-        validCustomer = await prisma.customer.create({
-          data: { name: "Demo Customer", email: "demo@razorai.demo" },
-        });
-      }
-    }
-    const targetCustomerId = validCustomer.id;
+    // Ensure customer exists in database
+    await prisma.customer.upsert({
+      where: { id: customerId },
+      update: {},
+      create: {
+        id: customerId,
+        name: "Guest Shopper",
+        email: `${customerId}@shopper.razorai.demo`,
+      },
+    });
 
     let cart = await prisma.cart.findUnique({
       where: {
-        customerId: targetCustomerId,
+        customerId,
       },
     });
 
     if (!cart) {
       cart = await prisma.cart.create({
         data: {
-          customerId: targetCustomerId,
+          customerId,
         },
       });
     }
@@ -83,12 +82,7 @@ router.post("/", async (req, res) => {
 // Get cart
 router.get("/:customerId", async (req, res) => {
   try {
-    let customerId = req.params.customerId;
-    const exists = await prisma.customer.findUnique({ where: { id: customerId } });
-    if (!exists) {
-      const firstCust = await prisma.customer.findFirst();
-      if (firstCust) customerId = firstCust.id;
-    }
+    const customerId = req.params.customerId;
 
     const cart = await prisma.cart.findUnique({
       where: {
@@ -107,6 +101,7 @@ router.get("/:customerId", async (req, res) => {
       return res.json({
         items: [],
         total: 0,
+        formattedTotal: "₹0",
       });
     }
 
@@ -118,6 +113,7 @@ router.get("/:customerId", async (req, res) => {
     return res.json({
       ...cart,
       total,
+      formattedTotal: `₹${(total / 100).toLocaleString("en-IN")}`,
     });
   } catch (error) {
     console.error(error);
@@ -131,12 +127,7 @@ router.get("/:customerId", async (req, res) => {
 // Remove item from cart
 router.delete("/:customerId/:productId", async (req, res) => {
   try {
-    let customerId = req.params.customerId;
-    const exists = await prisma.customer.findUnique({ where: { id: customerId } });
-    if (!exists) {
-      const firstCust = await prisma.customer.findFirst();
-      if (firstCust) customerId = firstCust.id;
-    }
+    const customerId = req.params.customerId;
 
     const cart = await prisma.cart.findUnique({
       where: {
@@ -145,8 +136,8 @@ router.delete("/:customerId/:productId", async (req, res) => {
     });
 
     if (!cart) {
-      return res.status(404).json({
-        message: "Cart not found",
+      return res.json({
+        message: "Cart not found or empty",
       });
     }
 
@@ -172,12 +163,7 @@ router.delete("/:customerId/:productId", async (req, res) => {
 // Clear all items from cart
 router.delete("/:customerId", async (req, res) => {
   try {
-    let customerId = req.params.customerId;
-    const exists = await prisma.customer.findUnique({ where: { id: customerId } });
-    if (!exists) {
-      const firstCust = await prisma.customer.findFirst();
-      if (firstCust) customerId = firstCust.id;
-    }
+    const customerId = req.params.customerId;
 
     const cart = await prisma.cart.findUnique({
       where: {

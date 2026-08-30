@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { api } from "./api";
+import { useState } from "react";
 import Dashboard from "./pages/Dashboard";
 import AISales from "./pages/AISales";
 import AIBuyer from "./pages/AIBuyer";
@@ -14,23 +13,23 @@ import {
   Zap,
 } from "lucide-react";
 
+function getOrCreateSessionCustomerId(): string {
+  const KEY = "razorai_customer_session_v2";
+  try {
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = "cust_" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  } catch (e) {
+    return "cust_" + Date.now().toString(36);
+  }
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "chat" | "buyer" | "products" | "audit">("dashboard");
-  const [customerId, setCustomerId] = useState<string>("cmtfcc2jn0001czfr1m0knbly");
-
-  useEffect(() => {
-    async function loadCustomer() {
-      try {
-        const res = await api.get("/buyer/customer");
-        if (res.data?.id) {
-          setCustomerId(res.data.id);
-        }
-      } catch (err) {
-        console.error("Failed to load customer:", err);
-      }
-    }
-    loadCustomer();
-  }, []);
+  const [customerId] = useState<string>(() => getOrCreateSessionCustomerId());
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
