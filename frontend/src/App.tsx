@@ -16,7 +16,7 @@ import {
 export default function App() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "chat" | "buyer" | "products" | "audit">("dashboard");
 
-  const customerId = "cmtepv2i300018wql42g5vvlc"; // Seeded customer ID
+  const customerId = "cmtfcc2jn0001czfr1m0knbly"; // Seeded customer ID (Bhaskar Reddy)
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
