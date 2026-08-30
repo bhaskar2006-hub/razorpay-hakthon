@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "./api";
 import Dashboard from "./pages/Dashboard";
 import AISales from "./pages/AISales";
 import AIBuyer from "./pages/AIBuyer";
@@ -15,8 +16,21 @@ import {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "chat" | "buyer" | "products" | "audit">("dashboard");
+  const [customerId, setCustomerId] = useState<string>("cmtfcc2jn0001czfr1m0knbly");
 
-  const customerId = "cmtfcc2jn0001czfr1m0knbly"; // Seeded customer ID (Bhaskar Reddy)
+  useEffect(() => {
+    async function loadCustomer() {
+      try {
+        const res = await api.get("/buyer/customer");
+        if (res.data?.id) {
+          setCustomerId(res.data.id);
+        }
+      } catch (err) {
+        console.error("Failed to load customer:", err);
+      }
+    }
+    loadCustomer();
+  }, []);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
