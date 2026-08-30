@@ -23,6 +23,34 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// AI Commerce Discovery Protocol (Track 01 Headless AI Protocol)
+app.get("/.well-known/ai-commerce.json", (_req, res) => {
+  res.json({
+    name: "RazorAI Agentic Commerce Gateway",
+    version: "1.0.0",
+    description: "Machine-readable e-commerce protocol for autonomous AI buyer agents and conversational commerce",
+    protocol_version: "1.0-agentic",
+    endpoints: {
+      discovery: "/.well-known/ai-commerce.json",
+      catalog: "/api/catalog/ai",
+      intent: "/api/purchase-intent",
+      checkout_preview: "/api/checkout/preview",
+      checkout_approve: "/api/checkout/approve",
+      payments_verify: "/api/payments/verify",
+      webhooks: "/api/webhooks",
+      audit_logs: "/api/audit",
+    },
+    constraints: {
+      supported_currencies: ["INR"],
+      max_single_transaction_limit_paise: 10000000,
+      max_single_transaction_limit_inr: 100000,
+      payment_gateway: "Razorpay Standard Checkout (Test Mode)",
+      policy_engine: "Server-Enforced (Bounded, Gated, Explainable)",
+      signature_verification: "HMAC SHA256",
+    },
+  });
+});
+
 // Health check
 app.get("/api/health", (_req, res) => {
   res.json({

@@ -4,6 +4,7 @@ import AISales from "./pages/AISales";
 import AIBuyer from "./pages/AIBuyer";
 import AuditTrail from "./pages/AuditTrail";
 import Products from "./pages/Products";
+import APIProtocol from "./pages/APIProtocol";
 import {
   LayoutDashboard,
   Sparkles,
@@ -11,6 +12,7 @@ import {
   Package,
   ShieldCheck,
   Zap,
+  Terminal,
 } from "lucide-react";
 
 function getOrCreateSessionCustomerId(): string {
@@ -28,7 +30,7 @@ function getOrCreateSessionCustomerId(): string {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "chat" | "buyer" | "products" | "audit">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "chat" | "buyer" | "products" | "audit" | "api">("dashboard");
   const [customerId] = useState<string>(() => getOrCreateSessionCustomerId());
 
   return (
@@ -87,6 +89,7 @@ export default function App() {
               { id: "buyer", label: "AI Buyer", icon: Bot },
               { id: "products", label: "Products", icon: Package },
               { id: "audit", label: "Audit Trail", icon: ShieldCheck },
+              { id: "api", label: "API Protocol", icon: Terminal },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -144,6 +147,7 @@ export default function App() {
         {activeTab === "buyer" && <AIBuyer customerId={customerId} />}
         {activeTab === "products" && <Products customerId={customerId} />}
         {activeTab === "audit" && <AuditTrail />}
+        {activeTab === "api" && <APIProtocol />}
       </main>
     </div>
   );
