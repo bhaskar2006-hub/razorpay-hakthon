@@ -15,6 +15,7 @@ import {
   AlertCircle,
   CheckCircle2,
   RefreshCcw,
+  Trash2,
 } from "lucide-react";
 
 interface Message {
@@ -146,6 +147,24 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
       await fetchCart();
     } catch (err) {
       console.error("Add to cart error:", err);
+    }
+  };
+
+  const handleRemoveFromCart = async (productId: string) => {
+    try {
+      await api.delete(`/cart/${customerId}/${productId}`);
+      await fetchCart();
+    } catch (err) {
+      console.error("Remove from cart error:", err);
+    }
+  };
+
+  const handleClearCart = async () => {
+    try {
+      await api.delete(`/cart/${customerId}`);
+      await fetchCart();
+    } catch (err) {
+      console.error("Clear cart error:", err);
     }
   };
 
@@ -416,7 +435,27 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "15px", fontWeight: 700 }}>
             <ShoppingBag size={18} color="var(--accent-primary)" /> Live Cart
           </div>
-          <span className="badge badge-accent">{cart.items.length} items</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {cart.items.length > 0 && (
+              <button
+                onClick={handleClearCart}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--danger)",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                }}
+                title="Clear entire cart"
+              >
+                Clear
+              </button>
+            )}
+            <span className="badge badge-accent">{cart.items.length} items</span>
+          </div>
         </div>
 
         {/* Cart Items */}
@@ -428,8 +467,31 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
           ) : (
             cart.items.map((item) => (
               <div key={item.id} style={{ background: "var(--bg-secondary)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border)" }}>
-                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>{item.product.name}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", flex: 1 }}>
+                    {item.product.name}
+                  </div>
+                  <button
+                    onClick={() => handleRemoveFromCart(item.productId)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                      padding: "2px",
+                      display: "flex",
+                      alignItems: "center",
+                      borderRadius: "4px",
+                      transition: "color 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--danger)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+                    title="Remove item from cart"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "var(--text-secondary)", marginTop: "6px" }}>
                   <span>Qty: {item.quantity}</span>
                   <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>
                     ₹{((item.product.price * item.quantity) / 100).toLocaleString("en-IN")}

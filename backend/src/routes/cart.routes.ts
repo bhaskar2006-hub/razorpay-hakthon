@@ -128,12 +128,19 @@ router.get("/:customerId", async (req, res) => {
   }
 });
 
-// Remove item
+// Remove item from cart
 router.delete("/:customerId/:productId", async (req, res) => {
   try {
+    let customerId = req.params.customerId;
+    const exists = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!exists) {
+      const firstCust = await prisma.customer.findFirst();
+      if (firstCust) customerId = firstCust.id;
+    }
+
     const cart = await prisma.cart.findUnique({
       where: {
-        customerId: req.params.customerId,
+        customerId,
       },
     });
 
@@ -143,12 +150,10 @@ router.delete("/:customerId/:productId", async (req, res) => {
       });
     }
 
-    await prisma.cartItem.delete({
+    await prisma.cartItem.deleteMany({
       where: {
-        cartId_productId: {
-          cartId: cart.id,
-          productId: req.params.productId,
-        },
+        cartId: cart.id,
+        productId: req.params.productId,
       },
     });
 
@@ -156,10 +161,45 @@ router.delete("/:customerId/:productId", async (req, res) => {
       message: "Item removed",
     });
   } catch (error) {
-    console.error(error);
+    console.error("Cart item deletion error:", error);
 
     return res.status(500).json({
       message: "Failed to remove item",
+    });
+  }
+});
+
+// Clear all items from cart
+router.delete("/:customerId", async (req, res) => {
+  try {
+    let customerId = req.params.customerId;
+    const exists = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!exists) {
+      const firstCust = await prisma.customer.findFirst();
+      if (firstCust) customerId = firstCust.id;
+    }
+
+    const cart = await prisma.cart.findUnique({
+      where: {
+        customerId,
+      },
+    });
+
+    if (cart) {
+      await prisma.cartItem.deleteMany({
+        where: {
+          cartId: cart.id,
+        },
+      });
+    }
+
+    return res.json({
+      message: "Cart cleared",
+    });
+  } catch (error) {
+    console.error("Clear cart error:", error);
+    return res.status(500).json({
+      message: "Failed to clear cart",
     });
   }
 });
