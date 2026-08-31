@@ -501,38 +501,126 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
                     padding: "12px 16px",
                     borderRadius: "12px",
                     fontSize: "14px",
-                    lineHeight: 1.5,
+                    lineHeight: 1.6,
                     background: m.role === "user" ? "var(--accent-primary)" : "var(--bg-secondary)",
                     color: "white",
                     border: m.role === "user" ? "none" : "1px solid var(--border)",
-                    whiteSpace: "pre-wrap",
                   }}
                 >
-                  {m.content}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {m.content.split("\n").map((line, lIdx) => {
+                      if (!line.trim()) return <div key={lIdx} style={{ height: "4px" }} />;
+                      const parts = line.split(/(\*\*.*?\*\*)/g);
+                      return (
+                        <div key={lIdx}>
+                          {parts.map((part, pIdx) => {
+                            if (part.startsWith("**") && part.endsWith("**")) {
+                              return (
+                                <strong key={pIdx} style={{ color: "#ffffff", fontWeight: 700 }}>
+                                  {part.slice(2, -2)}
+                                </strong>
+                              );
+                            }
+                            return <span key={pIdx}>{part}</span>;
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Welcome Message Quick Suggestion Chips */}
+                  {m.id === "welcome" && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
+                      {[
+                        "💻 I want a coding laptop",
+                        "🎮 Gaming setup under ₹70,000",
+                        "🎧 Wireless Earbuds",
+                        "🖥️ 4K Gaming Monitor",
+                        "⚡ 1-Rupee Test Checkout",
+                      ].map((promptText, pIdx) => (
+                        <button
+                          key={pIdx}
+                          onClick={() => handleSend(promptText)}
+                          style={{
+                            background: "rgba(99, 102, 241, 0.15)",
+                            border: "1px solid rgba(99, 102, 241, 0.3)",
+                            color: "#c7d2fe",
+                            padding: "6px 12px",
+                            borderRadius: "8px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          {promptText}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Render Product Cards if returned by tools */}
+                {/* Render Full-Featured Interactive Product Cards */}
                 {m.products && m.products.length > 0 && (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px" }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+                      gap: "12px",
+                      marginTop: "6px",
+                      width: "100%",
+                    }}
+                  >
                     {m.products.map((p) => (
-                      <div key={p.id} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "10px", padding: "12px" }}>
-                        <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)" }}>{p.name}</div>
-                        <div style={{ fontSize: "11px", color: "var(--text-muted)", margin: "2px 0 6px 0" }}>{p.description}</div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", gap: "6px" }}>
-                          <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--text-primary)" }}>
-                            ₹{(p.price / 100).toLocaleString("en-IN")}
-                          </span>
+                      <div
+                        key={p.id}
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "12px",
+                          padding: "14px",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "space-between",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                            <span className="badge badge-accent" style={{ fontSize: "10px", padding: "2px 6px" }}>
+                              {p.category || "Product"}
+                            </span>
+                            <span style={{ fontSize: "11px", color: "var(--success)", fontWeight: 600 }}>
+                              ● In Stock
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px" }}>
+                            {p.name}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4, marginBottom: "12px" }}>
+                            {p.description}
+                          </div>
+                        </div>
+
+                        <div style={{ borderTop: "1px solid var(--border)", paddingTop: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
+                          <div>
+                            <div style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase" }}>Price</div>
+                            <div style={{ fontSize: "15px", fontWeight: 800, color: "var(--text-primary)" }}>
+                              ₹{(p.price / 100).toLocaleString("en-IN")}
+                            </div>
+                          </div>
+
                           <div style={{ display: "flex", gap: "6px" }}>
                             <button
                               className="btn btn-secondary"
-                              style={{ padding: "4px 8px", fontSize: "11px" }}
+                              style={{ padding: "5px 8px", fontSize: "11px" }}
                               onClick={() => handleAddToCart(p.id)}
                             >
                               <Plus size={12} /> Add
                             </button>
                             <button
                               className="btn btn-primary"
-                              style={{ padding: "4px 10px", fontSize: "12px", background: "var(--accent-gradient)" }}
+                              style={{ padding: "5px 10px", fontSize: "11px", background: "var(--accent-gradient)" }}
                               onClick={() => handleDirectBuyNow(p.id)}
                             >
                               ⚡ Buy Now
@@ -565,7 +653,8 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
                             fontSize: "12px",
                           }}
                         >
-                          <span>{rec.name} (₹{(rec.price / 100).toLocaleString("en-IN")})</span>
+                          <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{rec.name}</span>
+                          <span style={{ color: "var(--cyan)", fontWeight: 700 }}>₹{(rec.price / 100).toLocaleString("en-IN")}</span>
                           <button
                             className="btn btn-secondary"
                             style={{ padding: "2px 8px", fontSize: "11px", color: "var(--success)" }}
