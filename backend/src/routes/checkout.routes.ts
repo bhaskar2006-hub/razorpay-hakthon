@@ -148,6 +148,17 @@ router.post("/approve", async (req: Request, res: Response) => {
       });
     }
 
+    // Ensure customer exists in DB
+    await prisma.customer.upsert({
+      where: { id: customerId },
+      update: {},
+      create: {
+        id: customerId,
+        name: "Guest Shopper",
+        email: `${customerId}@shopper.razorai.demo`,
+      },
+    });
+
     // 3. Create Internal Order
     const order = await prisma.order.create({
       data: {

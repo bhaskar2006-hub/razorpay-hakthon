@@ -188,13 +188,14 @@ export default function AIBuyer({ customerId }: { customerId?: string }) {
   };
 
   const handleApproveProposalManual = async () => {
-    if (!proposal?.cart?.total) return;
+    const targetTotal = proposal?.cart?.total || proposal?.totalAmount;
+    if (!targetTotal) return;
 
     try {
       const res = await api.post("/checkout/approve", {
         customerId,
         userApproved: true,
-        expectedTotal: proposal.cart.total,
+        expectedTotal: targetTotal,
       });
 
       setApprovedOrder(res.data);

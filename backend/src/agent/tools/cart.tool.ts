@@ -6,6 +6,18 @@ export async function addToCart(input: {
   quantity?: number;
 }) {
   const quantity = input.quantity || 1;
+
+  // Ensure customer exists before creating cart
+  await prisma.customer.upsert({
+    where: { id: input.customerId },
+    update: {},
+    create: {
+      id: input.customerId,
+      name: "Guest Shopper",
+      email: `${input.customerId}@shopper.razorai.demo`,
+    },
+  });
+
   let cart = await prisma.cart.findUnique({
     where: { customerId: input.customerId },
   });
