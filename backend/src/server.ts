@@ -121,90 +121,168 @@ async function bootstrapDatabase() {
       });
     }
 
-    const productCount = await prisma.product.count();
-    if (productCount === 0) {
-      console.log("Seeding base products for store catalog...");
-      const productsData = [
-        {
-          name: "⚡ RazorAI 1-Rupee Demo Item",
-          description: "Instant ₹1 live test transaction item for checkout and webhook verification",
-          category: "demo",
-          price: 100,
-          stock: 999,
-        },
-        {
-          name: "Gaming Laptop X",
-          description: "16GB RAM, RTX 4060 GPU, 1TB SSD, 144Hz FHD Display",
-          category: "gaming-laptop",
-          price: 6499900,
-          stock: 15,
-        },
-        {
-          name: "Pro Creator Laptop",
-          description: "32GB RAM, 2TB SSD, OLED 4K Display, Intel i9",
-          category: "creator-laptop",
-          price: 8999900,
-          stock: 8,
-        },
-        {
-          name: "Gaming Mouse",
-          description: "High precision 26K DPI optical sensor, ultra-low latency wireless",
-          category: "gaming-accessories",
-          price: 149900,
-          stock: 40,
-        },
-        {
-          name: "Mechanical Keyboard",
-          description: "RGB hot-swappable mechanical tactile switches with wrist rest",
-          category: "gaming-accessories",
-          price: 349900,
-          stock: 30,
-        },
-        {
-          name: "Adjustable Laptop Stand",
-          description: "Ergonomic aluminum heat-dissipating riser stand",
-          category: "laptop-accessories",
-          price: 249900,
-          stock: 25,
-        },
-        {
-          name: "Noise-Cancelling Headset",
-          description: "Spatial 7.1 surround sound gaming headphones with AI mic",
-          category: "gaming-accessories",
-          price: 499900,
-          stock: 20,
-        },
-        {
-          name: "Extended 2-Year Protection Plan",
-          description: "Comprehensive accidental damage & warranty coverage",
-          category: "protection",
-          price: 199900,
-          stock: 500,
-        },
-        {
-          name: "4K Gaming Monitor 27\"",
-          description: "165Hz IPS G-Sync compatible ultra-fast monitor",
-          category: "displays",
-          price: 2499900,
-          stock: 12,
-        },
-        {
-          name: "USB-C Thunderbolt Dock",
-          description: "12-in-1 multi-port docking station with 100W Power Delivery",
-          category: "laptop-accessories",
-          price: 549900,
-          stock: 18,
-        },
-        {
-          name: "Speed Precision Gaming Mousepad",
-          description: "Anti-slip XXL micro-textured gaming surface",
-          category: "gaming-accessories",
-          price: 79900,
-          stock: 60,
-        },
-      ];
+    const productsData = [
+      {
+        name: "⚡ RazorAI 1-Rupee Demo Item",
+        description: "Instant ₹1 live test transaction item for checkout and webhook verification",
+        category: "demo",
+        price: 100,
+        stock: 999,
+      },
+      {
+        name: "Gaming Laptop X",
+        description: "16GB RAM, RTX 4060 GPU, 1TB SSD, 144Hz FHD Display",
+        category: "gaming-laptop",
+        price: 6499900,
+        stock: 15,
+      },
+      {
+        name: "Pro Creator Laptop 16\"",
+        description: "32GB RAM, 2TB SSD, OLED 4K Display, Intel i9 Processor",
+        category: "creator-laptop",
+        price: 8999900,
+        stock: 8,
+      },
+      {
+        name: "Ultra-Slim Ultrabook 14\"",
+        description: "Lightweight 1.1kg Intel Core i7, 16GB RAM, 512GB NVMe SSD, 18hr Battery",
+        category: "ultrabook",
+        price: 5499900,
+        stock: 20,
+      },
+      {
+        name: "4K Gaming Monitor 27\"",
+        description: "165Hz IPS G-Sync compatible ultra-fast gaming monitor",
+        category: "displays",
+        price: 2499900,
+        stock: 12,
+      },
+      {
+        name: "Curved Ultrawide Monitor 34\"",
+        description: "WQHD 3440x1440 144Hz HDR400 1500R curvature panoramic display",
+        category: "displays",
+        price: 3999900,
+        stock: 10,
+      },
+      {
+        name: "Gaming Mouse",
+        description: "High precision 26K DPI optical sensor, ultra-low latency wireless",
+        category: "gaming-accessories",
+        price: 149900,
+        stock: 40,
+      },
+      {
+        name: "Mechanical Keyboard RGB",
+        description: "RGB hot-swappable mechanical tactile switches with padded wrist rest",
+        category: "gaming-accessories",
+        price: 349900,
+        stock: 30,
+      },
+      {
+        name: "Noise-Cancelling Headset 7.1",
+        description: "Spatial 7.1 surround sound gaming headphones with AI noise-cancelling mic",
+        category: "gaming-accessories",
+        price: 499900,
+        stock: 20,
+      },
+      {
+        name: "Speed Precision Gaming Mousepad",
+        description: "Anti-slip XXL micro-textured water-resistant gaming surface",
+        category: "gaming-accessories",
+        price: 79900,
+        stock: 60,
+      },
+      {
+        name: "Mechanical Macro Stream Pad",
+        description: "9 customizable hot-swap macro keys with rotary volume encoder",
+        category: "gaming-accessories",
+        price: 189900,
+        stock: 35,
+      },
+      {
+        name: "Adjustable Laptop Stand",
+        description: "Ergonomic aluminum heat-dissipating riser stand with 360 swivel",
+        category: "laptop-accessories",
+        price: 249900,
+        stock: 25,
+      },
+      {
+        name: "USB-C Thunderbolt Dock 12-in-1",
+        description: "12-in-1 multi-port docking station with 100W Power Delivery and dual 4K HDMI",
+        category: "laptop-accessories",
+        price: 549900,
+        stock: 18,
+      },
+      {
+        name: "GaN 100W Fast Charger 4-Port",
+        description: "Gallium Nitride ultra-compact PD 3.0 charger with 3 USB-C and 1 USB-A ports",
+        category: "laptop-accessories",
+        price: 319900,
+        stock: 45,
+      },
+      {
+        name: "Wireless Noise-Cancelling Earbuds Pro",
+        description: "Active Noise Cancelling, Spatial Audio, 32hr battery life with Qi Wireless Case",
+        category: "audio",
+        price: 699900,
+        stock: 30,
+      },
+      {
+        name: "Hi-Res Spatial Desktop Soundbar",
+        description: "Dual 20W drivers, deep bass radiator, Bluetooth 5.3 and AUX connectivity",
+        category: "audio",
+        price: 449900,
+        stock: 22,
+      },
+      {
+        name: "Studio Streaming USB Microphone",
+        description: "Cardioid condenser microphone with built-in pop filter and RGB lighting",
+        category: "streaming",
+        price: 749900,
+        stock: 15,
+      },
+      {
+        name: "Full HD 1080p 60FPS Pro Webcam",
+        description: "AI auto-focus, HDR lighting correction and dual stereo mics with privacy shutter",
+        category: "streaming",
+        price: 429900,
+        stock: 28,
+      },
+      {
+        name: "Fast Wireless Charging Pad 3-in-1",
+        description: "15W MagSafe fast charging station for phone, smartwatch, and earbuds",
+        category: "accessories",
+        price: 219900,
+        stock: 50,
+      },
+      {
+        name: "Smart RGB Monitor Light Bar",
+        description: "Screen-mounted eye-care light bar with auto-dimming sensor and ambient backlighting",
+        category: "accessories",
+        price: 279900,
+        stock: 40,
+      },
+      {
+        name: "MagSafe Magnetic Power Bank 10,000mAh",
+        description: "20W fast wireless magnetic portable charger with LED battery display",
+        category: "accessories",
+        price: 199900,
+        stock: 50,
+      },
+      {
+        name: "Extended 2-Year Protection Plan",
+        description: "Comprehensive accidental damage, liquid spill & warranty coverage",
+        category: "protection",
+        price: 199900,
+        stock: 500,
+      },
+    ];
 
-      for (const p of productsData) {
+    for (const p of productsData) {
+      const existing = await prisma.product.findFirst({
+        where: { name: p.name },
+      });
+      if (!existing) {
         await prisma.product.create({
           data: {
             merchantId: merchant.id,
