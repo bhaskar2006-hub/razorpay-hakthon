@@ -157,6 +157,35 @@ router.post("/verify", async (req: Request, res: Response) => {
           },
         },
       }),
+
+      prisma.webhookLog.create({
+        data: {
+          id: `whk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          event: "payment.captured",
+          payload: {
+            entity: "event",
+            account_id: "acc_razorai_live",
+            event: "payment.captured",
+            contains: ["payment"],
+            payload: {
+              payment: {
+                entity: {
+                  id: razorpay_payment_id,
+                  entity: "payment",
+                  amount: order.totalAmount,
+                  currency: "INR",
+                  status: "captured",
+                  order_id: razorpay_order_id,
+                  method: "upi_card",
+                  description: `Order ${order.id} checkout settlement`,
+                  created_at: Math.floor(Date.now() / 1000),
+                },
+              },
+            },
+            created_at: Math.floor(Date.now() / 1000),
+          },
+        },
+      }),
     ]);
 
     return res.json({
@@ -178,13 +207,8 @@ router.post("/fail", async (req: Request, res: Response) => {
   try {
     const { orderId, razorpay_order_id, razorpay_payment_id, reason } = req.body;
 
-    const order = await prisma.order.findFirst({
-      where: {
-        OR: [
-          ...(orderId ? [{ id: orderId }] : []),
-          ...(razorpay_order_id ? [{ razorpayOrderId: razorpay_order_id }] : []),
-        ],
-      },
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
       include: {
         payments: { orderBy: { createdAt: "desc" }, take: 1 },
       },
@@ -194,8 +218,6 @@ router.post("/fail", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    const failureReason = reason || "Payment declined or cancelled by customer/bank";
-    const paymentId = razorpay_payment_id || `failed_${Date.now()}`;
     const latestPayment = order.payments[0];
 
     await prisma.$transaction([
@@ -205,8 +227,8 @@ router.post("/fail", async (req: Request, res: Response) => {
               where: { id: latestPayment.id },
               data: {
                 status: "FAILED",
-                failureReason,
-                razorpayPaymentId: paymentId,
+                failureReason: reason || "User cancelled or payment failed",
+                razorpayPaymentId: razorpay_payment_id,
               },
             }),
           ]
@@ -214,10 +236,10 @@ router.post("/fail", async (req: Request, res: Response) => {
             prisma.payment.create({
               data: {
                 orderId: order.id,
-                amount: order.totalAmount,
                 status: "FAILED",
-                failureReason,
-                razorpayPaymentId: paymentId,
+                failureReason: reason || "User cancelled or payment failed",
+                razorpayPaymentId: razorpay_payment_id,
+                amount: order.totalAmount,
               },
             }),
           ]),
@@ -233,16 +255,45 @@ router.post("/fail", async (req: Request, res: Response) => {
           orderId: order.id,
           eventType: "PAYMENT",
           action: "PAYMENT_FAILED",
-          description: `Payment failed for order ${order.id}: ${failureReason}`,
+          description: `Payment failed for order ₹${order.totalAmount / 100}: ${reason || "User cancelled"}`,
           metadata: {
-            paymentId,
-            reason: failureReason,
+            reason: reason || "Payment cancelled",
             orderId: order.id,
-            amount: order.totalAmount,
+            razorpayPaymentId: razorpay_payment_id,
+          },
+        },
+      }),
+
+      prisma.webhookLog.create({
+        data: {
+          id: `whk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          event: "payment.failed",
+          payload: {
+            entity: "event",
+            account_id: "acc_razorai_live",
+            event: "payment.failed",
+            contains: ["payment"],
+            payload: {
+              payment: {
+                entity: {
+                  id: razorpay_payment_id || `pay_failed_${Date.now()}`,
+                  entity: "payment",
+                  amount: order.totalAmount,
+                  currency: "INR",
+                  status: "failed",
+                  order_id: razorpay_order_id,
+                  error_description: reason || "Payment cancelled by user",
+                  created_at: Math.floor(Date.now() / 1000),
+                },
+              },
+            },
+            created_at: Math.floor(Date.now() / 1000),
           },
         },
       }),
     ]);
+
+    const failureMsg = reason || "Payment declined or cancelled";
 
     return res.json({
       success: false,
@@ -250,7 +301,7 @@ router.post("/fail", async (req: Request, res: Response) => {
       status: "FAILED",
       message: "Payment failure recorded",
       explanation: "Payment failed. No successful charge was recorded for this order.",
-      reason: failureReason,
+      reason: failureMsg,
       canRetry: true,
     });
   } catch (error: any) {

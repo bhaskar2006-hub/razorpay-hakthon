@@ -83,6 +83,21 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (tab: string) =
     }
   };
 
+  const [simulatingWebhook, setSimulatingWebhook] = useState(false);
+  const handleSimulateWebhook = async (eventType: string = "payment.captured") => {
+    try {
+      setSimulatingWebhook(true);
+      const res = await api.post("/webhooks/simulate", { eventType, amount: 6499900 });
+      if (res.data?.log) {
+        setWebhookLogs((prev) => [res.data.log, ...prev]);
+      }
+    } catch (err) {
+      console.error("Simulate webhook error:", err);
+    } finally {
+      setSimulatingWebhook(false);
+    }
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -435,9 +450,28 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (tab: string) =
               <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--success)", display: "inline-block", marginRight: "4px" }} /> Listening
             </span>
           </div>
-          <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={clearWebhookLogs}>
-            Clear Logs
-          </button>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button
+              className="btn btn-secondary"
+              style={{ padding: "4px 10px", fontSize: "11px", border: "1px solid var(--accent-primary)", color: "#818cf8" }}
+              onClick={() => handleSimulateWebhook("payment.captured")}
+              disabled={simulatingWebhook}
+            >
+              <Sparkles size={12} />
+              {simulatingWebhook ? "Sending..." : "⚡ Simulate Captured Event"}
+            </button>
+            <button
+              className="btn btn-secondary"
+              style={{ padding: "4px 8px", fontSize: "11px", color: "var(--danger)", border: "1px solid rgba(239, 68, 68, 0.3)" }}
+              onClick={() => handleSimulateWebhook("payment.failed")}
+              disabled={simulatingWebhook}
+            >
+              Simulate Failed
+            </button>
+            <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={clearWebhookLogs}>
+              Clear Logs
+            </button>
+          </div>
         </div>
 
         <div style={{ background: "#0a0b0e", border: "1px solid var(--border)", borderRadius: "8px", height: "200px", overflowY: "auto", fontFamily: "var(--font-mono)", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>

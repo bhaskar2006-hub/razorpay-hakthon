@@ -228,12 +228,68 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
+// SIMULATE live Razorpay Webhook Event for Terminal testing
+router.post("/simulate", async (req: Request, res: Response) => {
+  try {
+    const eventType = req.body?.eventType || "payment.captured";
+    const sampleAmount = req.body?.amount || 6499900;
+    const paymentId = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const orderId = `order_${Math.random().toString(36).slice(2, 10)}`;
+
+    const simulatedPayload = {
+      entity: "event",
+      account_id: "acc_razorai_live",
+      event: eventType,
+      contains: ["payment"],
+      payload: {
+        payment: {
+          entity: {
+            id: paymentId,
+            entity: "payment",
+            amount: sampleAmount,
+            currency: "INR",
+            status: eventType === "payment.failed" ? "failed" : "captured",
+            order_id: orderId,
+            method: "upi",
+            description: "Autonomous AI Agent Checkout Payment",
+            email: "shopper@razorai.demo",
+            contact: "+919876543210",
+            fee: Math.floor(sampleAmount * 0.02),
+            tax: Math.floor(sampleAmount * 0.0036),
+            error_code: eventType === "payment.failed" ? "BAD_REQUEST_ERROR" : null,
+            error_description: eventType === "payment.failed" ? "Payment failed due to bank timeout" : null,
+            created_at: Math.floor(Date.now() / 1000),
+          },
+        },
+      },
+      created_at: Math.floor(Date.now() / 1000),
+    };
+
+    const newLog = await prisma.webhookLog.create({
+      data: {
+        id: `whk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        event: eventType,
+        payload: simulatedPayload,
+      },
+    });
+
+    return res.json({
+      success: true,
+      log: newLog,
+      message: `Simulated ${eventType} event streamed to terminal`,
+    });
+  } catch (err: any) {
+    console.error("Webhook simulate error:", err);
+    return res.status(500).json({ message: "Failed to simulate webhook" });
+  }
+});
+
 // GET webhook logs for Live Terminal
 router.get("/logs", async (req: Request, res: Response) => {
   try {
     const logs = await prisma.webhookLog.findMany({
       orderBy: { receivedAt: "desc" },
-      take: 15,
+      take: 25,
     });
     return res.json(logs || []);
   } catch (err) {
