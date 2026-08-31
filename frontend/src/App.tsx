@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Dashboard from "./pages/Dashboard";
+import GrowthOpportunities from "./pages/GrowthOpportunities";
 import AISales from "./pages/AISales";
 import AIBuyer from "./pages/AIBuyer";
 import AuditTrail from "./pages/AuditTrail";
@@ -7,6 +8,7 @@ import Products from "./pages/Products";
 import APIProtocol from "./pages/APIProtocol";
 import {
   LayoutDashboard,
+  TrendingUp,
   Sparkles,
   Bot,
   Package,
@@ -30,7 +32,7 @@ function getOrCreateSessionCustomerId(): string {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "chat" | "buyer" | "products" | "audit" | "api">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "growth" | "chat" | "buyer" | "products" | "audit" | "api">("dashboard");
   const [customerId] = useState<string>(() => getOrCreateSessionCustomerId());
 
   return (
@@ -76,7 +78,7 @@ export default function App() {
                 RazorAI
               </div>
               <div style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 500 }}>
-                Agentic Commerce Gateway
+                AI Growth &amp; Agentic Commerce
               </div>
             </div>
           </div>
@@ -85,6 +87,7 @@ export default function App() {
           <nav style={{ display: "flex", alignItems: "center", gap: "4px" }}>
             {[
               { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+              { id: "growth", label: "AI Growth", icon: TrendingUp },
               { id: "chat", label: "AI Sales", icon: Sparkles },
               { id: "buyer", label: "AI Buyer", icon: Bot },
               { id: "products", label: "Products", icon: Package },
@@ -100,8 +103,8 @@ export default function App() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "8px",
-                    padding: "8px 14px",
+                    gap: "6px",
+                    padding: "8px 12px",
                     borderRadius: "8px",
                     border: "none",
                     background: isActive ? "var(--bg-accent)" : "transparent",
@@ -112,7 +115,7 @@ export default function App() {
                     transition: "all 0.15s ease",
                   }}
                 >
-                  <Icon size={16} color={isActive ? "#818cf8" : "var(--text-secondary)"} />
+                  <Icon size={15} color={isActive ? "#818cf8" : "var(--text-secondary)"} />
                   {tab.label}
                 </button>
               );
@@ -143,6 +146,7 @@ export default function App() {
       {/* Main Content View */}
       <main className="container" style={{ flex: 1, paddingTop: "24px" }}>
         {activeTab === "dashboard" && <Dashboard onNavigate={(tab) => setActiveTab(tab as any)} />}
+        {activeTab === "growth" && <GrowthOpportunities onNavigate={(tab) => setActiveTab(tab as any)} />}
         {activeTab === "chat" && <AISales customerId={customerId} />}
         {activeTab === "buyer" && <AIBuyer customerId={customerId} />}
         {activeTab === "products" && <Products customerId={customerId} />}

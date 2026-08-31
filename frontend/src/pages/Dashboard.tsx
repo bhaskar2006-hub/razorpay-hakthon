@@ -201,6 +201,55 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (tab: string) =
         </div>
       </div>
 
+      {/* AI Growth Pipeline Banner */}
+      <div
+        className="card"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "16px",
+          background: "linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.12) 100%)",
+          border: "1px solid rgba(168, 85, 247, 0.3)",
+          padding: "16px 20px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <div
+            style={{
+              width: "44px",
+              height: "44px",
+              borderRadius: "12px",
+              background: "var(--accent-gradient)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 0 15px rgba(99, 102, 241, 0.5)",
+              flexShrink: 0,
+            }}
+          >
+            <TrendingUp size={22} color="white" />
+          </div>
+          <div>
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)" }}>
+              🚀 AI Growth Engine: Detected High-Confidence Upsell &amp; Cross-sell Opportunities
+            </div>
+            <div style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "2px" }}>
+              RazorAI analyzed past customer spending patterns and prepared bounded revenue offers with full explainability.
+            </div>
+          </div>
+        </div>
+
+        <button
+          className="btn btn-primary"
+          onClick={() => onNavigate && onNavigate("growth")}
+          style={{ padding: "10px 18px", fontSize: "13px", background: "var(--accent-gradient)", display: "flex", alignItems: "center", gap: "6px" }}
+        >
+          <Sparkles size={15} /> Review &amp; Approve Growth Actions &rarr;
+        </button>
+      </div>
+
       {/* Visual Section: Revenue Growth Chart & Channel Breakdown */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "20px", alignItems: "stretch" }}>
         {/* Revenue Growth Visual */}

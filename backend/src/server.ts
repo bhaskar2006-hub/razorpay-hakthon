@@ -16,6 +16,7 @@ import catalogRoutes from "./routes/catalog.routes";
 import purchaseIntentRoutes from "./routes/purchase-intent.routes";
 import policyRoutes from "./routes/policy.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
+import growthRoutes from "./routes/growth.routes";
 
 dotenv.config();
 
@@ -78,6 +79,7 @@ app.use("/api/catalog", catalogRoutes);
 app.use("/api/purchase-intent", purchaseIntentRoutes);
 app.use("/api/policy", policyRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/growth", growthRoutes);
 
 import { prisma } from "./lib/prisma";
 
@@ -291,6 +293,83 @@ async function bootstrapDatabase() {
             category: p.category,
             price: p.price,
             stock: p.stock,
+          },
+        });
+      }
+    }
+
+    // 3. Ensure Demo Customers & Past Purchases exist for Growth Engine
+    const customerCount = await prisma.customer.count();
+    if (customerCount <= 1) {
+      console.log("Seeding demo customer profiles and purchase history for AI Growth engine...");
+      const ultrabook = await prisma.product.findFirst({ where: { name: { contains: "Ultrabook" } } });
+      const gamingLaptop = await prisma.product.findFirst({ where: { name: { contains: "Gaming Laptop" } } });
+      const keyboard = await prisma.product.findFirst({ where: { name: { contains: "Keyboard" } } });
+      const mousepad = await prisma.product.findFirst({ where: { name: { contains: "Mousepad" } } });
+      const curvedMonitor = await prisma.product.findFirst({ where: { name: { contains: "Curved" } } });
+
+      const demoCustomers = [
+        {
+          id: "cust_rahul_sharma",
+          name: "Rahul Sharma",
+          email: "rahul.sharma@techcorp.in",
+          product: ultrabook,
+        },
+        {
+          id: "cust_ananya_verma",
+          name: "Ananya Verma",
+          email: "ananya.verma@creator.io",
+          product: gamingLaptop,
+        },
+        {
+          id: "cust_vikram_patel",
+          name: "Vikram Patel",
+          email: "vikram.patel@gamerz.dev",
+          product: keyboard,
+          secondaryProduct: mousepad,
+        },
+        {
+          id: "cust_priya_nair",
+          name: "Priya Nair",
+          email: "priya.nair@scaleup.ai",
+          product: curvedMonitor,
+        },
+      ];
+
+      for (const dc of demoCustomers) {
+        if (!dc.product) continue;
+        const cust = await prisma.customer.upsert({
+          where: { id: dc.id },
+          create: { id: dc.id, name: dc.name, email: dc.email },
+          update: { name: dc.name, email: dc.email },
+        });
+
+        const order = await prisma.order.create({
+          data: {
+            merchantId: merchant.id,
+            customerId: cust.id,
+            subtotal: dc.product.price,
+            totalAmount: dc.product.price,
+            currency: "INR",
+            status: "PAID",
+            source: "HUMAN",
+            items: {
+              create: {
+                productId: dc.product.id,
+                quantity: 1,
+                unitPrice: dc.product.price,
+                totalPrice: dc.product.price,
+              },
+            },
+          },
+        });
+
+        await prisma.payment.create({
+          data: {
+            orderId: order.id,
+            amount: dc.product.price,
+            status: "CAPTURED",
+            razorpayPaymentId: `pay_demo_${order.id.slice(-6)}`,
           },
         });
       }
