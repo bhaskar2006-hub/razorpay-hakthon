@@ -169,8 +169,24 @@ export async function runAgentConversation(params: {
         .filter(Boolean)
         .join("\n");
 
+      // Extract products and recommendations returned by tools
+      const collectedProducts: any[] = [];
+      const collectedRecommendations: any[] = [];
+
+      for (const tc of executedToolCalls) {
+        if (tc.toolName === "search_products" && Array.isArray(tc.result)) {
+          collectedProducts.push(...tc.result);
+        } else if (tc.toolName === "get_product" && tc.result && !tc.result.error) {
+          collectedProducts.push(tc.result);
+        } else if (tc.toolName === "recommend_upsell" && Array.isArray(tc.result)) {
+          collectedRecommendations.push(...tc.result);
+        }
+      }
+
       return {
         message: responseText,
+        products: collectedProducts,
+        recommendations: collectedRecommendations,
         toolCalls: executedToolCalls,
         triggerCheckout: isCheckoutConfirmation,
       };
@@ -240,8 +256,24 @@ export async function runAgentConversation(params: {
     });
   }
 
+  const collectedProducts: any[] = [];
+  const collectedRecommendations: any[] = [];
+
+  for (const tc of executedToolCalls) {
+    if (tc.toolName === "search_products" && Array.isArray(tc.result)) {
+      collectedProducts.push(...tc.result);
+    } else if (tc.toolName === "get_product" && tc.result && !tc.result.error) {
+      collectedProducts.push(tc.result);
+    } else if (tc.toolName === "recommend_upsell" && Array.isArray(tc.result)) {
+      collectedRecommendations.push(...tc.result);
+    }
+  }
+
   return {
-    message: "I processed your request.",
+    message: "I found matching recommendations for your query.",
+    products: collectedProducts,
+    recommendations: collectedRecommendations,
     toolCalls: executedToolCalls,
+    triggerCheckout: isCheckoutConfirmation,
   };
 }
