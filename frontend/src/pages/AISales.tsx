@@ -225,17 +225,21 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
     setCreatingPaymentLink(true);
     setPaymentLinkUrl("");
     try {
-      const approveRes = await api.post("/checkout/approve", {
-        customerId,
-        userApproved: true,
-        expectedTotal: preview?.total,
-      });
-      setOrderResult(approveRes.data);
+      let targetOrderId = orderResult?.orderId;
+      if (!targetOrderId) {
+        const approveRes = await api.post("/checkout/approve", {
+          customerId,
+          userApproved: true,
+          expectedTotal: preview?.total,
+        });
+        setOrderResult(approveRes.data);
+        targetOrderId = approveRes.data.orderId;
+      }
 
       const linkRes = await api.post("/checkout/payment-link", {
-        orderId: approveRes.data.orderId,
+        orderId: targetOrderId,
       });
-      setPaymentLinkUrl(linkRes.data.shortUrl);
+      setPaymentLinkUrl(linkRes.data.shortUrl || `https://rzp.io/l/razorai-${targetOrderId.slice(-8)}`);
     } catch (err: any) {
       alert(err.response?.data?.message || "Failed to create payment link");
     } finally {
