@@ -20,6 +20,8 @@ import {
   Trash2,
   Copy,
   QrCode,
+  Mic,
+  MicOff,
 } from "lucide-react";
 
 interface Message {
@@ -76,6 +78,63 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
   const [creatingPaymentLink, setCreatingPaymentLink] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [selectedBankIdx, setSelectedBankIdx] = useState(0);
+
+  // Voice Speech-to-Text State
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = "en-IN";
+
+        recognition.onresult = (event: any) => {
+          const transcript = Array.from(event.results)
+            .map((result: any) => result[0])
+            .map((result: any) => result.transcript)
+            .join("");
+          setInput(transcript);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn("Speech recognition error:", event.error);
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+      } catch (e) {
+        console.warn("Speech init failed:", e);
+      }
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (e) {
+        console.warn("Speech start error:", e);
+      }
+    }
+  };
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -565,6 +624,13 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
           <button
             className="btn btn-secondary"
             style={{ fontSize: "12px", padding: "4px 10px", whiteSpace: "nowrap", border: "1px solid var(--accent-primary)", color: "#818cf8" }}
+            onClick={() => handleSend("I want to buy a coding laptop")}
+          >
+            💻 "I want to buy a coding laptop"
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: "12px", padding: "4px 10px", whiteSpace: "nowrap" }}
             onClick={() => handleSend("Show me the 1 rupee demo item")}
           >
             ⚡ "₹1 Live Demo Item"
@@ -574,7 +640,7 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
             style={{ fontSize: "12px", padding: "4px 10px", whiteSpace: "nowrap" }}
             onClick={() => handleSend("I need a gaming laptop under ₹70,000")}
           >
-            💻 "Gaming laptop under ₹70k"
+            🎮 "Gaming laptop under ₹70k"
           </button>
           <button
             className="btn btn-secondary"
@@ -592,18 +658,48 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
           </button>
         </div>
 
-        {/* Input Bar */}
-        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: "10px", background: "var(--bg-card)" }}>
+        {/* Input Bar with Voice Recognition */}
+        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: "10px", alignItems: "center", background: "var(--bg-card)" }}>
+          <button
+            type="button"
+            className="btn"
+            onClick={toggleListening}
+            title={isListening ? "Listening... (Click to stop)" : "Click to speak with voice"}
+            style={{
+              background: isListening ? "rgba(239, 68, 68, 0.2)" : "var(--bg-secondary)",
+              border: isListening ? "1px solid var(--danger)" : "1px solid var(--border)",
+              color: isListening ? "var(--danger)" : "var(--text-secondary)",
+              padding: "10px 12px",
+              borderRadius: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "13px",
+              fontWeight: 600,
+              boxShadow: isListening ? "0 0 12px rgba(239, 68, 68, 0.5)" : "none",
+              transition: "all 0.2s ease",
+            }}
+          >
+            {isListening ? (
+              <>
+                <MicOff size={16} color="var(--danger)" />
+                <span style={{ color: "var(--danger)", fontSize: "12px" }}>Listening...</span>
+              </>
+            ) : (
+              <Mic size={16} />
+            )}
+          </button>
+
           <input
             type="text"
-            placeholder="Ask RazorAI about products, prices, bundles..."
+            placeholder={isListening ? "Listening to your voice..." : "Type or speak to RazorAI (e.g. 'I want to buy a coding laptop')..."}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             style={{
               flex: 1,
               background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
+              border: isListening ? "1px solid var(--danger)" : "1px solid var(--border)",
               borderRadius: "8px",
               padding: "10px 14px",
               color: "white",

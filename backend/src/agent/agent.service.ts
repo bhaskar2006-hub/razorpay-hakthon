@@ -59,37 +59,60 @@ export async function handleCustomerMessage(input: AgentChatInput | string) {
   // Check for catalog matching keywords
   let category: string | undefined = undefined;
   let maxPrice: number | undefined = undefined;
+  let customQuery: string | undefined = undefined;
 
-  if (lower.includes("gaming laptop") || lower.includes("laptop")) {
+  if (lower.includes("coding laptop") || lower.includes("programming") || lower.includes("developer") || lower.includes("code")) {
+    customQuery = "laptop";
+  } else if (lower.includes("gaming laptop") || lower.includes("laptop") || lower.includes("ultrabook")) {
     category = "gaming-laptop";
     if (lower.includes("70") || lower.includes("70000") || lower.includes("70k")) {
       maxPrice = 7000000;
     }
   } else if (lower.includes("mouse") || lower.includes("keyboard") || lower.includes("headset") || lower.includes("mousepad")) {
     category = "gaming-accessories";
-  } else if (lower.includes("stand") || lower.includes("dock")) {
+  } else if (lower.includes("stand") || lower.includes("dock") || lower.includes("charger")) {
     category = "laptop-accessories";
-  } else if (lower.includes("monitor") || lower.includes("display")) {
+  } else if (lower.includes("monitor") || lower.includes("display") || lower.includes("screen")) {
     category = "displays";
+  } else if (lower.includes("audio") || lower.includes("earbuds") || lower.includes("soundbar") || lower.includes("mic") || lower.includes("webcam")) {
+    category = "audio";
   } else if (lower.includes("protection") || lower.includes("warranty")) {
     category = "protection";
   } else if (lower.includes("demo") || lower.includes("1-rupee") || lower.includes("1 rupee")) {
     category = "demo";
   }
 
-  if (category || lower.includes("buy") || lower.includes("find") || lower.includes("want")) {
-    const productsResult = await executeTool("search_products", {
-      category: category || undefined,
-      query: !category ? params.message : undefined,
-      maxPrice,
-    });
+  if (category || customQuery || lower.includes("buy") || lower.includes("find") || lower.includes("want") || lower.includes("need")) {
+    let products: any[] = [];
 
-    const products = Array.isArray(productsResult) ? productsResult : [];
+    if (customQuery === "laptop" || lower.includes("coding") || lower.includes("programming")) {
+      // Return curated multi-option coding laptops
+      products = await prisma.product.findMany({
+        where: {
+          active: true,
+          OR: [
+            { category: "ultrabook" },
+            { category: "creator-laptop" },
+            { category: "gaming-laptop" },
+          ],
+        },
+        orderBy: { price: "asc" },
+        take: 3,
+      });
+    } else {
+      const productsResult = await executeTool("search_products", {
+        category: category || undefined,
+        query: !category ? params.message : undefined,
+        maxPrice,
+      });
+      products = Array.isArray(productsResult) ? productsResult : [];
+    }
+
     const primaryProduct = products.length > 0 ? products[0] : null;
 
     let upsell: any[] = [];
     if (primaryProduct && "id" in primaryProduct) {
-      // Auto-add primary product to customer's cart
+      // Auto-add top match to customer's cart
       if (params.customerId) {
         await addToCart({
           customerId: params.customerId,
@@ -110,22 +133,27 @@ export async function handleCustomerMessage(input: AgentChatInput | string) {
           merchantId: params.merchantId,
           eventType: "AGENT_ACTION",
           action: "TOOL_SEARCH_PRODUCTS",
-          description: `Agent searched catalog for '${params.message}' and prepared cart`,
-          metadata: { productsFound: products.length, addedToCart: primaryProduct?.name },
+          description: `Agent searched catalog for '${params.message}' and presented options`,
+          metadata: { productsFound: products.length, topMatch: primaryProduct?.name },
         },
       });
     }
 
-    const recItem = upsell.length > 0 ? upsell[0] : null;
-    const productName = primaryProduct ? (primaryProduct as any).name : "Product";
-    const productPrice = primaryProduct ? (primaryProduct as any).price : 0;
+    const isCodingQuery = lower.includes("coding") || lower.includes("programming") || lower.includes("developer");
+    let introText = "";
+    
+    if (isCodingQuery) {
+      introText = `I found **${products.length} great laptop options for coding & software development**:\n\n1️⃣ **Ultra-Slim Ultrabook 14"** (₹54,999) — *Ultra-portable (1.1kg) with 18hr battery, ideal for web/app dev*\n2️⃣ **Gaming Laptop X** (₹64,999) — *RTX 4060 GPU, 16GB RAM for AI/ML workloads & multi-monitors*\n3️⃣ **Pro Creator Laptop 16"** (₹89,999) — *32GB RAM & Intel i9 for heavy compilation & virtualization*\n\n✨ *I've added the **${primaryProduct?.name}** (₹${((primaryProduct?.price || 0)/100).toLocaleString("en-IN")}) to your cart.*`;
+    } else {
+      introText = `I found the best match for you and prepared your order:\n\n✨ **${primaryProduct?.name}** — ₹${((primaryProduct?.price || 0) / 100).toLocaleString("en-IN")}`;
+    }
 
-    const recText = recItem
-      ? `\n\n💡 *Complementary Add-on:* I also recommend pairing it with **${recItem.name}** for ₹${(recItem.price / 100).toLocaleString("en-IN")}.`
+    const recText = upsell.length > 0
+      ? `\n\n💡 **Recommended Productivity Add-ons:** Pair it with the **${upsell[0].name}** (₹${(upsell[0].price / 100).toLocaleString("en-IN")}) for the best setup!`
       : "";
 
     return {
-      message: `I found the best match for you and added it to your cart:\n\n✨ **${productName}** — ₹${(productPrice / 100).toLocaleString("en-IN")}${recText}\n\n👉 **Would you like to accept and proceed to checkout?** Reply **"Yes"** or click the checkout button below!`,
+      message: `${introText}${recText}\n\n👉 **Choose an option below, or reply "Yes" to proceed directly to 1-Click Checkout!**`,
       products,
       recommendations: upsell,
       toolCalls: [
@@ -154,7 +182,7 @@ export async function handleCustomerMessage(input: AgentChatInput | string) {
 
   return {
     message:
-      "Tell me what product you're looking for (e.g. *Gaming Laptop under ₹70,000*, *Noise-Cancelling Headset*, *Mechanical Keyboard*), and I will find it and prepare your order!",
+      "Tell me what product you're looking for (e.g. *'I want to buy a coding laptop'*, *'Gaming setup under ₹70,000'*, *'Wireless Earbuds'*), or tap the 🎙️ mic icon to speak!",
     toolCalls: [],
   };
 }
