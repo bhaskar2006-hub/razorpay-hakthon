@@ -11,7 +11,21 @@ router.get("/", async (_req: Request, res: Response) => {
       take: 60,
       include: {
         merchant: { select: { name: true } },
-        order: { select: { id: true, totalAmount: true, status: true, source: true } },
+        order: {
+          select: {
+            id: true,
+            totalAmount: true,
+            status: true,
+            source: true,
+            items: {
+              include: {
+                product: {
+                  select: { id: true, name: true, category: true, price: true },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -35,6 +49,15 @@ router.get("/", async (_req: Request, res: Response) => {
         statusType = "GATE";
       }
 
+      const products = log.order?.items?.map((i) => ({
+        id: i.product.id,
+        name: i.product.name,
+        category: i.product.category,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        formattedPrice: `₹${(i.unitPrice / 100).toLocaleString("en-IN")}`,
+      })) || [];
+
       return {
         id: log.id,
         time,
@@ -48,6 +71,7 @@ router.get("/", async (_req: Request, res: Response) => {
         orderStatus: log.order?.status,
         orderSource: log.order?.source,
         orderAmount: log.order ? `₹${(log.order.totalAmount / 100).toLocaleString("en-IN")}` : null,
+        products,
       };
     });
 

@@ -14,6 +14,15 @@ import {
   ArrowDown,
 } from "lucide-react";
 
+interface AuditProduct {
+  id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unitPrice: number;
+  formattedPrice: string;
+}
+
 interface AuditEvent {
   id: string;
   time: string;
@@ -27,6 +36,7 @@ interface AuditEvent {
   orderStatus?: string;
   orderSource?: string;
   orderAmount?: string | null;
+  products?: AuditProduct[];
 }
 
 export default function AuditTrail() {
@@ -240,7 +250,41 @@ export default function AuditTrail() {
                 </div>
               </div>
 
-              {/* Policy Checks Breakdown (if available) */}
+              {/* Associated Catalog Products */}
+              {selectedEvent.products && selectedEvent.products.length > 0 && (
+                <div style={{ background: "var(--bg-secondary)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>
+                    🛍️ Associated Catalog Products ({selectedEvent.products.length})
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {selectedEvent.products.map((p, pIdx) => (
+                      <div
+                        key={pIdx}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          background: "var(--bg-card)",
+                          padding: "6px 10px",
+                          borderRadius: "6px",
+                          border: "1px solid var(--border)",
+                          fontSize: "12px",
+                        }}
+                      >
+                        <div>
+                          <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{p.name}</span>
+                          <span style={{ color: "var(--text-muted)", marginLeft: "6px", fontSize: "11px" }}>
+                            ({p.category}) x{p.quantity}
+                          </span>
+                        </div>
+                        <span style={{ fontWeight: 800, color: "var(--success)" }}>{p.formattedPrice}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Policy Checks Breakdown */}
               <div style={{ background: "var(--bg-secondary)", padding: "14px", borderRadius: "8px", border: "1px solid var(--border)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "10px" }}>
                   <Lock size={14} color="var(--success)" /> Policy Verification Checks
@@ -274,8 +318,13 @@ export default function AuditTrail() {
 
               {/* Raw JSON Payload Inspector */}
               <div>
-                <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                  Structured Event Metadata (Audit Payload)
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
+                    Structured Event Metadata (Audit Payload)
+                  </span>
+                  <span style={{ fontSize: "11px", color: "var(--cyan)", fontFamily: "var(--font-mono)" }}>
+                    {selectedEvent.orderId ? `Order #${selectedEvent.orderId.slice(-8)}` : "System Action"}
+                  </span>
                 </div>
                 <pre
                   style={{
