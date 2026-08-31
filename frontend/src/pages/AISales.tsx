@@ -136,6 +136,13 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
 
       setMessages((prev) => [...prev, assistantMsg]);
       await fetchCart();
+
+      // If user confirmed checkout intent in conversation, open approval preview immediately
+      if (res.data.triggerCheckout) {
+        setTimeout(() => {
+          handleOpenCheckoutPreview();
+        }, 500);
+      }
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
@@ -161,6 +168,11 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
     } catch (err) {
       console.error("Add to cart error:", err);
     }
+  };
+
+  const handleDirectBuyNow = async (productId: string) => {
+    await handleAddToCart(productId);
+    handleOpenCheckoutPreview();
   };
 
   const handleRemoveFromCart = async (productId: string) => {
@@ -443,13 +455,26 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
                       <div key={p.id} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "10px", padding: "12px" }}>
                         <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)" }}>{p.name}</div>
                         <div style={{ fontSize: "11px", color: "var(--text-muted)", margin: "2px 0 6px 0" }}>{p.description}</div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", gap: "6px" }}>
                           <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--text-primary)" }}>
                             ₹{(p.price / 100).toLocaleString("en-IN")}
                           </span>
-                          <button className="btn btn-primary" style={{ padding: "4px 10px", fontSize: "12px" }} onClick={() => handleAddToCart(p.id)}>
-                            <Plus size={14} /> Add to Cart
-                          </button>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: "4px 8px", fontSize: "11px" }}
+                              onClick={() => handleAddToCart(p.id)}
+                            >
+                              <Plus size={12} /> Add
+                            </button>
+                            <button
+                              className="btn btn-primary"
+                              style={{ padding: "4px 10px", fontSize: "12px", background: "var(--accent-gradient)" }}
+                              onClick={() => handleDirectBuyNow(p.id)}
+                            >
+                              ⚡ Buy Now
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -488,6 +513,28 @@ export default function AISales({ customerId = "cmtepv2i300018wql42g5vvlc" }: { 
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Actionable Conversational Checkout Bridge */}
+                {m.role === "assistant" && m.id !== "welcome" && cart.items.length > 0 && (
+                  <div style={{ display: "flex", gap: "8px", marginTop: "4px", flexWrap: "wrap" }}>
+                    <button
+                      className="btn btn-primary"
+                      style={{
+                        padding: "8px 14px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        background: "var(--accent-gradient)",
+                        boxShadow: "0 0 12px rgba(99, 102, 241, 0.4)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                      onClick={handleOpenCheckoutPreview}
+                    >
+                      <CreditCard size={14} /> Accept & Proceed to Payment ({cart.formattedTotal})
+                    </button>
                   </div>
                 )}
               </div>

@@ -57,6 +57,28 @@ const recommendUpsellDecl: FunctionDeclaration = {
   },
 };
 
+import { addToCart } from "../agent/tools/cart.tool";
+
+const addToCartDecl: FunctionDeclaration = {
+  name: "add_to_cart",
+  description:
+    "Add an item to the customer's cart. Use this when the user wants to buy or select a product.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      productId: {
+        type: Type.STRING,
+        description: "Product ID to add to cart",
+      },
+      quantity: {
+        type: Type.INTEGER,
+        description: "Quantity (default 1)",
+      },
+    },
+    required: ["productId"],
+  },
+};
+
 export async function runAgentConversation(params: {
   message: string;
   merchantId?: string;
@@ -68,6 +90,22 @@ export async function runAgentConversation(params: {
   if (!apiKey || apiKey === "your_gemini_api_key_here") {
     return null; // Signals fallback should be used
   }
+
+  const lowerMsg = params.message.toLowerCase().trim();
+  const isCheckoutConfirmation = [
+    "yes",
+    "proceed",
+    "checkout",
+    "buy now",
+    "buy it",
+    "confirm",
+    "place order",
+    "pay",
+    "ok",
+    "sure",
+    "i accept",
+    "accept",
+  ].some((kw) => lowerMsg === kw || lowerMsg.startsWith(kw) || lowerMsg.includes(kw));
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -91,6 +129,7 @@ export async function runAgentConversation(params: {
     searchProductsDecl,
     getProductDecl,
     recommendUpsellDecl,
+    addToCartDecl,
   ];
 
   const executedToolCalls: Array<{
@@ -133,6 +172,7 @@ export async function runAgentConversation(params: {
       return {
         message: responseText,
         toolCalls: executedToolCalls,
+        triggerCheckout: isCheckoutConfirmation,
       };
     }
 
@@ -148,7 +188,15 @@ export async function runAgentConversation(params: {
       let result: any = null;
 
       try {
-        result = await executeTool(toolName, toolArgs);
+        if (toolName === "add_to_cart" && params.customerId) {
+          result = await addToCart({
+            customerId: params.customerId,
+            productId: toolArgs.productId,
+            quantity: toolArgs.quantity || 1,
+          });
+        } else {
+          result = await executeTool(toolName, toolArgs);
+        }
 
         if (params.merchantId) {
           await prisma.auditLog.create({
